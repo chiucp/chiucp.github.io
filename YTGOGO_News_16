@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube影片嵌入</title>
+    <!--link rel="icon" type="image/png" sizes="32x32" href="https://cdn.oaistatic.com/assets/favicon-32x32-p4ktpm1x.webp" media="(prefers-color-scheme: light)">
+    <link rel="icon" type="image/png" sizes="32x32" href="https://cdn.oaistatic.com/assets/favicon-dark-32x32-gt5kfzyp.webp" media="(prefers-color-scheme: dark)">
+    <link rel="icon" type="image/svg+xml" sizes="32x32" href="https://cdn.oaistatic.com/assets/favicon-o20kmmos.svg"-->
+    <link rel="icon" href="\\fs2\Dept(Q)\04_業務處\05_產品開發部\99_Public\00-個人暫存區\ChiuCP_竣品\000000發發發發發發\cp2.ico">
+  <!-- 引入YouTube JavaScript API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+</head>
+<body>
+<!--ssssssssssssssssss-->
+  <h1>YTGOGO工具</h1>
+  <div class="row video-container">
+    <div class="column video-container-inner video-medium js-video-container" data-video-size="medium">     
+      <div class="oembedContainer ">
+        <!--input type="text" id="youtube-link-input" placeholder="輸入YouTube影片連結" style="width: 350px; height: 20px;" onfocus="highlightText(this)"-->
+        <input type="text" id="youtube-link-input" placeholder="輸入YouTube影片連結" style="width: 350px; height: 20px;" onclick="selectAllText(this)">
+        <form onsubmit="embedYouTubeVideo(); return false;">
+          <button type="submit">嵌入影片</button>
+        </form>
+        <!--button onclick="embedYouTubeVideo()">嵌入影片</button-->
+        <br>
+        <button onclick="setIframeSize(960, 540)">960x540</button>
+        <button onclick="setIframeSize(640, 360)">640x360</button>
+        <button onclick="setIframeSize(320, 180)">320x180</button>
+        <button onclick="increaseIframeSize()"> ++ </button>
+        <button onclick="decreaseIframeSize()"> -- </button>
+
+        <div id="youtube-video"></div>
+        <div id="related-videos">
+          <!-- 這個元素將用於顯示相關影片連結 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="link-list">
+    <!-- 這個元素將用於顯示連結列表 -->
+  </div>
+
+  <span style="background-color:#ffeded;">
+    <br>
+    <br>
+    <br>
+    ★頻道影片限制嵌入★<br>
+    如果想要嵌入網站的影片，是來自別人的YouTube頻道，對方是有權限可以限制不讓網站嵌入影片的喔！<br>
+    如遇到這種狀況，無論怎麼調整數值，都是沒辦法顯示影片的。<br>
+  </span>
+
+  <!--分隔線-->
+  <br><hr><br>
+
+
+  <h1>Y_stock/ptt.cc網址轉換工具</h1>
+  <input type="text" id="輸入網址" placeholder="輸入stock新聞 or ptt網址"  style="width: 350px; height: 20px;" onclick="selectAllText(this)">
+  <br>
+  <button onclick="轉換網址()">轉跳</button>
+  <div id="結果"></div>
+
+
+  <span style="background-color:#a7f8c1;">
+    <br>快叫CP大帥哥v16
+  </span>
+
+
+<script>
+  var links = []; // 用於存儲輸入的連結
+  var count = 1; // 用於計算項次
+  var lastWindowSize = { width: 640, height: 360 };
+  
+  // 儲存播放器的全域變數
+  var player;
+
+  function highlightText(input) {
+    input.style.backgroundColor = "yellow";  // 變更背景顏色
+    input.style.color = "black";  // 變更文字顏色
+  }
+
+  function selectAllText(input) {
+    input.select();
+  }
+
+  function setIframeSize(width, height) {
+    var videoContainer = document.getElementById("youtube-video");
+    var iframe = videoContainer.querySelector("iframe");
+    if (iframe) {
+      iframe.setAttribute("width", width);
+      iframe.setAttribute("height", height);
+  
+      // 更新上一次的視窗大小
+      lastWindowSize.width = width;
+      lastWindowSize.height = height;
+    }
+  }
+
+  // 當YouTube API載入完成時
+  function onYouTubeIframeAPIReady() {
+    // 創建一個新的播放器
+    player = new YT.Player('youtube-video', {
+      events: {
+        'onStateChange': onPlayerStateChange
+      }
+    });
+  }
+
+  // 當播放器狀態改變時
+  function onPlayerStateChange(event) {
+    // 狀態為結束時
+    if (event.data === YT.PlayerState.ENDED) {
+      // 獲取相關影片的ID
+      var relatedVideoIds = player.getRelatedVideoIds();
+
+      // 顯示相關影片連結
+      var relatedVideosElement = document.getElementById('related-videos');
+      relatedVideosElement.innerHTML = '<h3>相關影片：</h3>';
+      for (var i = 0; i < relatedVideoIds.length; i++) {
+        var relatedVideoLink = 'https://www.youtube.com/watch?v=' + relatedVideoIds[i];
+        relatedVideosElement.innerHTML += '<p><a href="' + relatedVideoLink + '" target="_blank">' + relatedVideoLink + '</a></p>';
+      }
+    }
+  }
+
+  function embedYouTubeVideo() {
+    var inputLink = document.getElementById("youtube-link-input").value;
+    var videoContainer = document.getElementById("youtube-video");
+  
+    // 解析影片 ID
+    var videoID = getVideoID(inputLink);
+  
+    if (videoID) {
+      var embedCode = '<iframe loading="lazy" width="' + lastWindowSize.width + '" height="' + lastWindowSize.height + '" src="https://www.youtube-nocookie.com/embed/' + videoID + '?feature=oembed" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen="" enablejsapi="true"></iframe>';
+  
+      videoContainer.innerHTML = embedCode;
+  
+      // 將連結加入列表並更新顯示
+      links.push(inputLink);
+      updateLinkList(count);
+  
+      count++; // 增加項次計數
+    } else {
+      videoContainer.innerHTML = "請輸入有效的YouTube影片連結";
+    }
+  }
+
+// https://www.youtube.com/watch?v=HmnhBBGL8AM
+//https://www.youtube.com/live/HmnhBBGL8AM?si=G3_YfCe1PBdKZv9d
+  function getVideoID(url) {
+    var matches = url.match(/(?:\?v=|\/embed\/|\/v\/|youtu.be\/|\/v=|^v=|\/live\/)([a-zA-Z0-9_-]+)/);
+
+    if (matches && matches[1]) {
+      return matches[1];
+    } else {
+      return null;
+    }
+  }
+
+  function updateLinkList() {
+    var linkList = document.getElementById("link-list");
+    linkList.innerHTML = "<h3>歷史影片連結：</h3>";
+    for (var i = 0; i < links.length; i++) {
+      linkList.innerHTML += "<p>" + (i + 1) + ". " + links[i] + "</p>";
+    }
+  }
+  
+  function getCurrentIframeWidth() {
+    var videoContainer = document.getElementById("youtube-video");
+    var iframe = videoContainer.querySelector("iframe");
+    if (iframe) {
+      var currentWidth = iframe.getAttribute("width");
+      return parseInt(currentWidth); // 將字串轉換為數字
+    }
+    return 0;
+  }
+  
+  function getCurrentIframeHeight() {
+    var videoContainer = document.getElementById("youtube-video");
+    var iframe = videoContainer.querySelector("iframe");
+    if (iframe) {
+      var currentHeight = iframe.getAttribute("height");
+      return parseInt(currentHeight); // 將字串轉換為數字
+    }
+    return 0;
+  }
+
+  function increaseIframeSize() {
+    var newWidth = getCurrentIframeWidth() * 1.1;
+    var newHeight = getCurrentIframeHeight() * 1.1;
+    setIframeSize(newWidth, newHeight);
+  }
+  
+  function decreaseIframeSize() {
+    var newWidth = getCurrentIframeWidth() * 0.9;
+    var newHeight = getCurrentIframeHeight() * 0.9;
+    setIframeSize(newWidth, newHeight);
+  }
+  
+  
+  document.addEventListener("keydown", function(event) {
+    if (event.key === "Enter") {
+      embedYouTubeVideo();
+    }
+  });
+
+
+
+
+// 下面這裡是轉換網址
+
+
+function 轉換網址() {
+    // 獲取輸入框中的網址
+    var 原始網址 = document.getElementById("輸入網址").value;
+
+    // 判斷是否是 stock.yahoo.com/news/，如果是則替換成 news.yahoo.com/
+    if (原始網址.includes("https://tw.stock.yahoo.com/news/")) {
+        var 替換後網址 = 原始網址.replace("https://tw.stock.yahoo.com/news/", "https://tw.news.yahoo.com/");
+
+        // 創建超連結
+        var 超連結 = "<a href='" + 替換後網址 + "' target='_blank'>請點擊轉跳</a>";
+
+        // 顯示超連結
+        document.getElementById("結果").innerHTML = "替換後的網址: " + 超連結;
+
+        // 在新視窗中打開替換後的網址
+        window.open(替換後網址);
+    } 
+    // 判斷是否是 ptt.cc 開頭的網址，如果是則替換成 pttweb.cc
+    else if (原始網址.includes("https://www.ptt.cc/")) {
+        var 替換後網址 = 原始網址.replace("https://www.ptt.cc/", "https://www.pttweb.cc/");
+
+        // 創建超連結
+        var 超連結 = "<a href='" + 替換後網址 + "' target='_blank'>請點擊轉跳</a>";
+
+        // 顯示超連結
+        document.getElementById("結果").innerHTML = "替換後的網址: " + 超連結;
+
+        // 在新視窗中打開替換後的網址
+        window.open(替換後網址);
+    } 
+    // 若不符合上述條件，顯示錯誤訊息
+    else {
+        document.getElementById("結果").innerHTML = "抱歉，無法識別的網址模式";
+    }
+}
+
+  
+  
+  
+  
+</script>
+
+
+
+</body>
+</html>
