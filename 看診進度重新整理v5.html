@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>嵌入頁面並定時刷新</title>
+    <style>
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+        }
+        .container {
+            margin: 10px 0;
+        }
+        .time-info {
+            margin-top: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顯示目前刷新時間 -->
+    <div id="timeDisplay" class="time-info">目前刷新時間：尚未刷新</div>
+    
+    <!-- 輸入框讓使用者設定刷新間隔 -->
+    <div class="container">
+        <label for="refreshInterval">刷新間隔:</label>
+        <input type="number" id="refreshInterval" value="60" min="1" style="width: 50px;">
+        <button onclick="updateRefreshInterval()">設定時間</button>
+    </div>
+    
+    <!-- 輸入框讓使用者設定 iframe 顯示的網址 -->
+    <div class="container">
+        <label for="iframeURL">輸入網址:</label>
+        <input type="text" id="iframeURL" placeholder="請輸入網址" style="width: 300px;" onclick="selectText(this)" value="http://zmcms.cloud:48262/OPDBoardWeb/OPDT/TempMPageO?obid=m4iO49X9xmjyqsWWn3yhVJ/b4E1v15bOOFz54hVoREIWGCWuT7Otiy1mjxV1Spqq">
+        <button onclick="updateIframeURL()">更新網址</button>
+    </div>
+    
+    <!-- 嵌入該 URL -->
+    <iframe id="embeddedFrame" src="http://zmcms.cloud:48262/OPDBoardWeb/OPDT/TempMPageO?obid=m4iO49X9xmjyqsWWn3yhVJ/b4E1v15bOOFz54hVoREIWGCWuT7Otiy1mjxV1Spqq" allowfullscreen></iframe>
+
+    <script>
+        var intervalID;
+
+        // 更新顯示的時間
+        function updateTimeDisplay() {
+            var currentTime = new Date();
+            var formattedTime = currentTime.toLocaleString();  // 格式化當前時間
+            document.getElementById('timeDisplay').textContent = "目前刷新時間：" + formattedTime;
+        }
+
+        // 設置刷新間隔（預設為 300 秒）
+        function updateRefreshInterval() {
+            var seconds = document.getElementById('refreshInterval').value;
+            var interval = seconds * 1000; // 轉換為毫秒
+
+            // 清除先前的定時器
+            if (intervalID) {
+                clearInterval(intervalID);
+            }
+
+            // 設置新的定時器
+            intervalID = setInterval(function() {
+                var iframe = document.getElementById('embeddedFrame');
+                iframe.src = iframe.src; // 重新設置 iframe 的 src 來達到刷新效果
+                updateTimeDisplay();  // 每次刷新時更新時間
+            }, interval); // 每 x 秒刷新一次
+        }
+
+        // 頁面加載時設定初始刷新間隔
+        updateRefreshInterval();
+
+        // 更新 iframe 顯示的網址
+        function updateIframeURL() {
+            var newURL = document.getElementById('iframeURL').value;
+            var iframe = document.getElementById('embeddedFrame');
+            iframe.src = newURL; // 設定新的網址到 iframe
+        }
+        
+        // 當點擊 input 欄位時，選取所有文字
+        function selectText(input) {
+            input.select();  // 全選輸入框內的文字
+        }
+    </script>
+    
+    
+    <script>
+        function keepAwake() {
+          setInterval(() => {
+            // 創建一個不可見的元素並觸發事件
+            const dummy = document.createElement('div');
+            dummy.style.opacity = '0';
+            document.body.appendChild(dummy);
+            dummy.click(); // 模擬點擊
+            document.body.removeChild(dummy);
+          }, 30000); // 每 30 秒觸發一次
+        }
+        
+        keepAwake();
+    </script>
+</body>
+</html>
