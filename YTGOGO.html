@@ -3,13 +3,45 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YouTube影片嵌入_V16</title>
+  <title>YouTube影片嵌入</title>
     <!--link rel="icon" type="image/png" sizes="32x32" href="https://cdn.oaistatic.com/assets/favicon-32x32-p4ktpm1x.webp" media="(prefers-color-scheme: light)">
     <link rel="icon" type="image/png" sizes="32x32" href="https://cdn.oaistatic.com/assets/favicon-dark-32x32-gt5kfzyp.webp" media="(prefers-color-scheme: dark)">
     <link rel="icon" type="image/svg+xml" sizes="32x32" href="https://cdn.oaistatic.com/assets/favicon-o20kmmos.svg"-->
     <link rel="icon" href="\\fs2\Dept(Q)\04_業務處\05_產品開發部\99_Public\00-個人暫存區\ChiuCP_竣品\000000發發發發發發\cp2.ico">
   <!-- 引入YouTube JavaScript API -->
   <script src="https://www.youtube.com/iframe_api"></script>
+  
+  
+  <title>	讀取中... </title>
+    <script>
+        try {
+            // 取得 URL 路徑 (e.g., "/path/to/123123_v3.html")
+            const path = window.location.pathname;
+            
+            // 從路徑中取出檔案名稱 (e.g., "123123_v3.html")
+            const fileNameWithExtension = path.split('/').pop();
+
+            //fileNameWithExtension.split('.') 將檔案名稱按 . 分割成陣列。例如，123123_v3.html 會變成 ["123123_v3", "html"]。
+            //slice(0, -1) 移除陣列的最後一個元素（即副檔名），得到 ["123123_v3"]。
+            //join('.') 將陣列重新連接成字串，處理檔案名稱中可能包含多個點的情況（例如 archive.v1.html 會變成 archive.v1）。
+            //最終結果是純檔案名稱，例如 123123_v3。
+            const fileNameWithoutExtension = fileNameWithExtension.split('.').slice(0, -1).join('.');
+
+            // 提取 _ 後的部分 (e.g., "CP大帥哥超連結_v9" -> "v9")
+            const finalName = fileNameWithoutExtension.split('_').pop();
+            
+            // 如果成功取得檔名，就設定為網頁標題
+            if (finalName) {
+                document.title = "YTPlayer_v" + finalName;
+            } else {
+                document.title = "YTPlayer"; // 備用標題
+            }
+        } catch (e) {
+            // 如果發生錯誤，給一個預設標題
+            console.error('Error setting title:', e);
+            document.title = "YTPlayer";
+        }
+    </script>
 </head>
 <body>
 <!--ssssssssssssssssss-->
@@ -68,8 +100,18 @@
 
 
 <script>
-  var links = []; // 用於存儲輸入的連結
-  var count = 1; // 用於計算項次
+  var links = [];
+  var count = 1;
+
+  // 初始化：從 localStorage 載入歷史紀錄
+  window.addEventListener('DOMContentLoaded', function() {
+    var savedLinks = localStorage.getItem('ytgogo_links');
+    if (savedLinks) {
+      links = JSON.parse(savedLinks);
+      count = links.length + 1;
+      updateLinkList();
+    }
+  });
   var lastWindowSize = { width: 640, height: 360 };
   
   // 儲存播放器的全域變數
@@ -133,14 +175,14 @@
   
     if (videoID) {
       var embedCode = '<iframe loading="lazy" width="' + lastWindowSize.width + '" height="' + lastWindowSize.height + '" src="https://www.youtube-nocookie.com/embed/' + videoID + '?feature=oembed" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen="" enablejsapi="true"></iframe>';
-  
+
       videoContainer.innerHTML = embedCode;
-  
-      // 將連結加入列表並更新顯示
+
+      // 只記錄網址
       links.push(inputLink);
-      updateLinkList(count);
-  
-      count++; // 增加項次計數
+      localStorage.setItem('ytgogo_links', JSON.stringify(links));
+      updateLinkList();
+      count = links.length + 1;
     } else {
       videoContainer.innerHTML = "請輸入有效的YouTube影片連結";
     }
@@ -160,10 +202,27 @@
 
   function updateLinkList() {
     var linkList = document.getElementById("link-list");
-    linkList.innerHTML = "<h3>歷史影片連結：</h3>";
+    linkList.innerHTML = '<h3 style="display:inline;">歷史影片連結：</h3>' +
+      '<button style="margin-left:10px;" onclick="clearAllHistory()">清除全部</button>';
+
     for (var i = 0; i < links.length; i++) {
-      linkList.innerHTML += "<p>" + (i + 1) + ". " + links[i] + "</p>";
+      linkList.innerHTML += '<p>' + (i + 1) + '. ' + links[i] +
+        ' <button onclick="deleteHistory(' + i + ')">刪除</button></p>';
     }
+  }
+  
+  // 清除全部歷史紀錄（需為全域函式）
+  function clearAllHistory() {
+    links = [];
+    localStorage.removeItem('ytgogo_links');
+    updateLinkList();
+  }
+
+  // 刪除單筆歷史紀錄（需為全域函式）
+  function deleteHistory(idx) {
+    links.splice(idx, 1);
+    localStorage.setItem('ytgogo_links', JSON.stringify(links));
+    updateLinkList();
   }
   
   function getCurrentIframeWidth() {
