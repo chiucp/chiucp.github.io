@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="https://www.cht-pt.com.tw/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="https://www.chpt.com/images/touch-icon/apple-icon-60x60.png">
+
+    <title>	讀取中... </title>
+    <script>
+        try {
+            // 取得 URL 路徑 (e.g., "/path/to/123123_v3.html")
+            const path = window.location.pathname;
+            
+            // 從路徑中取出檔案名稱 (e.g., "123123_v3.html")
+            const fileNameWithExtension = path.split('/').pop();
+
+            //fileNameWithExtension.split('.') 將檔案名稱按 . 分割成陣列。例如，123123_v3.html 會變成 ["123123_v3", "html"]。
+            //slice(0, -1) 移除陣列的最後一個元素（即副檔名），得到 ["123123_v3"]。
+            //join('.') 將陣列重新連接成字串，處理檔案名稱中可能包含多個點的情況（例如 archive.v1.html 會變成 archive.v1）。
+            //最終結果是純檔案名稱，例如 123123_v3。
+            const fileNameWithoutExtension = fileNameWithExtension.split('.').slice(0, -1).join('.');
+
+            // 提取 _ 後的部分 (e.g., "CP大帥哥超連結_v9" -> "v9")
+            const finalName = fileNameWithoutExtension.split('_').pop();
+            
+            // 如果成功取得檔名，就設定為網頁標題
+            if (finalName) {
+                document.title = "工作需要超連結_" + finalName;
+            } else {
+                document.title = "工作需要超連結"; // 備用標題
+            }
+        } catch (e) {
+            // 如果發生錯誤，給一個預設標題
+            console.error('Error setting title:', e);
+            document.title = "工作需要超連結";
+        }
+    </script>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4E4D4;
+        }
+        h1 {
+            color: #333;
+        }
+        #fileList {
+            margin-top: 20px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            background-color: #fff;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        /* 為說明文字區域添加框框和樣式 */
+        .info-box {
+            border: 2px solid #0066cc;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            max-width: 550px;
+        }
+        .info-box p {
+            margin: 0 0 10px;
+        }
+        ul.horizontal-list {
+          display: flex; /* 設定為橫向排列 */
+          justify-content: flex-start; /* 讓兩個列表均勻分布 */
+          padding: 0px;
+          margin: 0px;
+          gap: 20px; /* 讓兩個列表之間有 20px 的間隔 */
+        }
+        
+        ul.horizontal-list li {
+          width: 20%; /* 每個列表項目的寬度 */
+          
+        iframe {
+          width: 200%; /* 設定寬度為 100%（根據父容器的寬度） */
+          height: 800px; /* 設定高度為 800px（你可以根據需要調整） */
+          border: none; /* 去除邊框 */
+        }
+          
+    </style>
+</head>
+<body>
+
+  <ul class="horizontal-list">
+    <li>
+      <strong>~~~常用目錄~~~
+        <br>
+        <a href="http://eip.cht-pt.com.tw/EIP_MyPAGE.aspx" target="_blank">· EIP入口網</a><br>
+        <a href="http://biap.cht-pt.com.tw:8080/ERP/Guide/DoToRedirect?type=EEP" target="_blank">· EEP電子簽核</a><br>
+        <a href="http://hrap.cht-pt.com.tw/CHPTHR/" target="_blank">· HR系統</a><br>
+        <a href="http://hrap.cht-pt.com.tw/HRM_MVC/" target="_blank">· HR系統_new</a><br>
+        <a href="http://erp.cht-pt.com.tw//ILogin.aspx?AutoLogin=Y&RedirectUrl=/HR/HRSelfAttd.aspx" target="_blank">· 同仁出勤記錄</a><br>
+        <a href="http://docpedia.cht-pt.com.tw:8080/WebAgenda/dpSSO/docSysSSo.jsp?loginID=131003" target="_blank">· 文管系統</a><br>
+        <a href="http://biap.cht-pt.com.tw:8080/ERP/SA/SA55P/Index" target="_blank">· 案件評估系統</a><br>
+        <a href="https://tp.chpt.com:10443/" target="_blank">· Team Plus</a><br>
+      </strong>
+    </li>
+  
+    <li>
+      <strong>~~~ERP 常用目錄~~~
+        <br>
+        <a href="http://biap.cht-pt.com.tw:8080/ERP/Login?AutoLogin=Y" target="_blank">· ERP 入口網</a><br>
+        <a href="http://erp.cht-pt.com.tw/PD/EC06P.aspx" target="_blank">· ERP 上傳/下載</a><br>
+        <a href="http://erp.cht-pt.com.tw/PD/PDYWP.aspx" target="_blank">· ERP Layout Tools </a><br>
+        <a href="http://biap.cht-pt.com.tw:8080/ERP/PD/PDYWP/Index" target="_blank">· ERP 設計履歷--統計點數 </a><br>
+        <a href="http://erp.cht-pt.com.tw/EC/EC0CPR.aspx" target="_blank">· ERP 設計變更單查詢 </a><br>
+        <a href="http://erp.cht-pt.com.tw/PM/PM0AP1.aspx" target="_blank">· ERP 非銷售案件開案(新) </a><br>
+        <a href="http://biap.cht-pt.com.tw:8080/ERP/PM/PM09P/Index" target="_blank">· ERP 設計人力待排案件管理 </a><br>
+        <a href="http://biap.cht-pt.com.tw:8080/ERP/Guide/ToERP?url=%2FHR%2FHR0CPA.aspx" target="_blank">· ERP 聯絡方式查詢 </a><br>
+        <a href="http://erp.cht-pt.com.tw/PD/PDYWP.aspx" target="_blank">· ERP LayoutTools </a><br>
+      </strong>
+    </li>
+    
+    <li>
+       <strong>~~~EN 工程管理~~~
+         <br>
+         <a href="http://erp.cht-pt.com.tw/EN/PDB5P.aspx" target="_blank">· 電子元件基本資料維護</a><br>
+         <a href="http://biap.cht-pt.com.tw:8080/ERP/Guide/ToERP?url=%2FEN%2FEN06P.aspx" target="_blank">· 零件申請</a><br>
+         <a href="http://erp.cht-pt.com.tw/EN/EN0CP.aspx" target="_blank">· 基板增修單 </a><br>
+         <a href="http://erp.cht-pt.com.tw/ROOT/RD.aspx" target="_blank">· PCB製作規格單 </a><br>
+       </strong>
+     </li>
+  </ul>
+
+        
+    <h1>自定義清單</h1>
+
+    
+    
+    <!-- 在檔案上傳區下方加入清除按鈕 -->
+    <input type="file" id="fileInput" accept=".csv, .txt" />
+    <button onclick="clearCustomList()" style="margin-left: 10px;">清除清單</button>
+    <div id="fileList"></div>
+
+    ERP 進度管制表，請輸入案號：
+    <input type="text" id="projectInput" placeholder="請在此輸入專案編號" style="width: 120px;">
+    <button onclick="openErpPage()">前往進度管制表</button>
+    <br>
+    <br>
+    
+    <script>
+      // 主要功能的 JavaScript 函式
+      function openErpPage() {
+        // 1. 定義固定的網址前半段
+        const baseUrl = 'http://erp.cht-pt.com.tw/PD/PDY2PNew.aspx?ProjectNo=';
+
+        // 2. 獲取輸入框中的文字內容
+        const projectNumber = document.getElementById('projectInput').value;
+
+        // 3. 檢查使用者是否有輸入內容
+        if (projectNumber.trim() === '') {
+          alert('請先輸入專案編號！');
+          return; // 如果沒有輸入，則停止執行
+        }
+
+        // 4. 組合完整的網址
+        const fullUrl = baseUrl + projectNumber;
+
+        // 5. 在新的分頁開啟組合好的網址
+        window.open(fullUrl, '_blank');
+      }
+
+      // 讓使用者在輸入框按下 Enter 鍵也能觸發按鈕點擊
+      document.getElementById('projectInput').addEventListener('keyup', function(event) {
+        // "Enter" 鍵的 key code 是 13
+        if (event.keyCode === 13) {
+          event.preventDefault(); // 防止預設行為 (例如表單提交)
+          openErpPage(); // 呼叫我們的函式
+        }
+      });
+    </script>
+
+    <script>
+        // 當檔案選擇後，觸發這個事件
+        document.getElementById('fileInput').addEventListener('change', handleFile, false);       
+        
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+        
+            // 清空之前顯示的內容
+            const listContainer = document.getElementById('fileList');
+            listContainer.innerHTML = '';  // 清空先前的列表
+        
+            const fileType = file.name.split('.').pop().toLowerCase();
+            if (fileType === 'txt' || fileType === 'csv') {
+                // 讀取 TXT 或 CSV 檔案
+                //readFile(file);
+                readFile(file, true); // 新增參數: 是否要存到 localStorage
+            } else {
+                alert('請選擇正確的 TXT 或 CSV 檔案');
+            }
+        
+            // 手動清除檔案輸入框，這樣就不會有緩存問題
+            event.target.value = '';  // 清除選擇的檔案
+        }
+
+        // grok_modify20250919:修改後的 readFile 函數
+        function readFile(file, saveToStorage = true) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                const lines = content.split('\n')
+                                    .filter(line => line.trim() !== '' && !line.trim().startsWith(';;'));
+                
+                // 存到 localStorage
+                if (saveToStorage) {
+                    try {
+                        localStorage.setItem('customListData', JSON.stringify(lines));
+                        console.log('已儲存到 localStorage，資料筆數：', lines.length);
+                    } catch (err) {
+                        console.error('localStorage 儲存失敗:', err);
+                    }
+                }
+                
+                // 生成 HTML 連結列表
+                generateLinks(lines);
+            };
+            reader.readAsText(file);
+        }
+
+        // grok_modify20250919:修改後的 generateLinks 函數
+        function generateLinks(data) {
+            const listContainer = document.getElementById('fileList');
+            listContainer.innerHTML = '';
+            const ul = document.createElement('ul');
+
+            if (!data || data.length === 0) {
+                const errorMessage = document.createElement('div');
+                errorMessage.className = 'error';
+                errorMessage.textContent = '檔案內容為空或格式不正確，請檢查檔案內容。';
+                listContainer.appendChild(errorMessage);
+                return;
+            }
+            
+            data.forEach((line) => {
+                const parts = line.split(','); // 以逗號分隔不同的部分
+
+                if (parts.length < 2 || parts.length > 3) {
+                    const errorMessage = document.createElement('div');
+                    errorMessage.className = 'error';
+                    errorMessage.textContent = `檔案內容格式錯誤： ${line}`;
+                    listContainer.appendChild(errorMessage);
+                    return;
+                }
+
+                const listItem = document.createElement('li');
+                const title = parts[0].trim(); // 標題是第一部分
+
+                if (parts.length === 2) {
+                    // 格式 1: 名稱, 網址
+                    const url = parts[1].trim();
+                    const titleElement = document.createElement('strong');
+                    titleElement.textContent = `· ${title}`;
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.textContent = url;
+                    link.target = "_blank";
+
+                    listItem.appendChild(titleElement);
+                    listItem.appendChild(document.createElement('br'));
+                    listItem.appendChild(link);
+                    ul.appendChild(listItem);
+                } else if (parts.length === 3) {
+                    // 格式 2: 名稱, 編號A, 編號B
+                    const idA = parts[1].trim();
+                    const idB = parts[2].trim();
+
+                    const titleElement = document.createElement('strong');
+                    titleElement.textContent = `· ${title}`;
+                    listItem.appendChild(titleElement);
+                    listItem.appendChild(document.createElement('br'));
+
+                    // 生成與編號A相關的連結
+                    const linkA = document.createElement('a');
+                    linkA.href = `http://erp.cht-pt.com.tw/PD/PDY2PNew.aspx?ProjectNo=${idA}`;
+                    linkA.textContent = 'ERP進度管製表';
+                    linkA.target = "_blank";
+                    listItem.appendChild(linkA);
+                    listItem.appendChild(document.createTextNode('\u00A0\u00A0\u00A0\u00A0'));
+
+                    // 生成與編號B相關的連結1
+                    const linkB = document.createElement('a');
+                    linkB.href = `http://erp.cht-pt.com.tw/PD/PDYEP.aspx?PDY2Mid=${idB}`;
+                    linkB.textContent = 'Review紀錄單';
+                    linkB.target = "_blank";
+                    listItem.appendChild(linkB);
+                    listItem.appendChild(document.createTextNode('\u00A0\u00A0\u00A0\u00A0'));
+
+                    // 生成與編號B相關的連結2
+                    const linkC = document.createElement('a');
+                    linkC.href = `http://erp.cht-pt.com.tw/PD/PDYJP.aspx?PDY2Mid=${idB}`;
+                    linkC.textContent = '工作日誌';
+                    linkC.target = "_blank";
+                    listItem.appendChild(linkC);
+                    listItem.appendChild(document.createTextNode('\u00A0\u00A0\u00A0\u00A0'));
+
+                    // 生成與編號B相關的連結3
+                    const linkD = document.createElement('a');
+                    linkD.href = `http://erp.cht-pt.com.tw/PD/PDYGP.aspx?PDY2Mid=${idB}`;
+                    linkD.textContent = '績效點數';
+                    linkD.target = "_blank";
+                    listItem.appendChild(linkD);
+                    listItem.appendChild(document.createTextNode('\u00A0\u00A0\u00A0\u00A0'));
+                    
+                    // 生成與編號B相關的連結4
+                    const linkE = document.createElement('a');
+                    linkE.href = `http://erp.cht-pt.com.tw/PD/PD10P.aspx?EEP=Y&PDY2Mid=${idB}`;
+                    linkE.textContent = '客需規格單';
+                    linkE.target = "_blank";
+                    listItem.appendChild(linkE);
+                    listItem.appendChild(document.createElement('br'));
+
+                    ul.appendChild(listItem);
+                }
+            });
+
+            listContainer.appendChild(ul);
+        }
+    </script>
+
+    <script>
+    //grok_add20250919
+      // ✅ 新增：頁面載入時自動讀取 localStorage 的自定義清單
+      document.addEventListener('DOMContentLoaded', function() {
+          // 頁面載入完成後立即讀取 localStorage
+          loadFromLocalStorage();
+          
+          // 其他現有的 DOMContentLoaded 代碼...
+          let refreshInterval;
+          let refreshTime = 30;
+          
+          // ... 你現有的自動刷新代碼 ...
+      });
+
+      // ✅ 新增：從 localStorage 載入資料的函數
+      function loadFromLocalStorage() {
+          try {
+              const saved = localStorage.getItem('customListData');
+              if (saved) {
+                  console.log('從 localStorage 讀取到資料');
+                  const lines = JSON.parse(saved);
+                  generateLinks(lines);
+                  
+                  // 可選：在頁面上顯示提示
+                  const listContainer = document.getElementById('fileList');
+                  const infoDiv = document.createElement('div');
+                  infoDiv.style.color = '#0066cc';
+                  infoDiv.style.fontSize = '14px';
+                  infoDiv.style.marginBottom = '10px';
+                  infoDiv.textContent = `✓ 已自動載入 ${lines.length} 筆自定義連結`;
+                  listContainer.parentNode.insertBefore(infoDiv, listContainer);
+              }
+          } catch (err) {
+              console.error('localStorage 讀取失敗:', err);
+          }
+      }
+
+      // ✅ 新增：清除 localStorage 的功能（可選）
+      function clearCustomList() {
+          if (confirm('確定要清除自定義清單嗎？')) {
+              localStorage.removeItem('customListData');
+              document.getElementById('fileList').innerHTML = '';
+              //alert('已清除自定義清單');
+          }
+      }
+    </script>
+
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          let refreshInterval;
+          let refreshTime = 30; // 默認刷新時間（秒）
+      
+          function resetRefreshTime() {
+              document.getElementById('lastRefreshTime').textContent = '上次刷新時間: 刷新中...';
+          }
+      
+          function updateRefreshTime() {
+              const currentTime = new Date();
+              document.getElementById('lastRefreshTime').textContent = '上次刷新時間: ' + currentTime.toLocaleString();
+          }
+      
+          function isWithinRefreshPeriod() {
+              const now = new Date();
+              const hours = now.getHours();
+              //alert("目前時間：" + hours + " 點");  // ✅ 正確顯示當前時間
+              return hours >= 8 && hours < 22; // 08:00 ~ 21:59 允許自動刷新
+          }
+      
+          function startRefresh() {
+              const iframe = document.getElementById('iframe_reflash');
+              resetRefreshTime();
+              iframe.src = iframe.src; // 立即刷新
+              iframe.addEventListener('load', updateRefreshTime, { once: true });
+      
+              // ✅ 確保只在 08:00 ~ 22:00 之間自動刷新
+              refreshInterval = setInterval(function() {
+                  if (isWithinRefreshPeriod()) {
+                      resetRefreshTime();
+                      iframe.src = iframe.src;
+                      iframe.addEventListener('load', updateRefreshTime, { once: true });
+                  }
+              }, refreshTime * 1000);
+          }
+      
+          function stopRefresh() {
+              if (refreshInterval) {
+                  clearInterval(refreshInterval);
+                  refreshInterval = null;
+              }
+          }
+      
+          document.getElementById('confirmRefresh').addEventListener('change', function() {
+              stopRefresh();
+              if (this.checked) {
+                  startRefresh(); // 立即刷新並判斷是否要持續自動刷新
+              }
+          });
+      
+          document.getElementById('refreshInterval').addEventListener('change', function() {
+              refreshTime = parseInt(this.value, 30);
+              if (refreshTime < 30) refreshTime = 30; // 最小值 30 秒
+              
+              if (document.getElementById('confirmRefresh').checked) {
+                  stopRefresh();
+                  startRefresh();
+              }
+          });
+      
+          window.addEventListener('load', function() {
+              if (document.getElementById('confirmRefresh').checked) {
+                  startRefresh();
+              }
+          });
+      
+          document.getElementById('manualRefreshButton').addEventListener('click', function() {
+              const iframe = document.getElementById('iframe_reflash');
+              resetRefreshTime();
+              iframe.src = iframe.src;
+              iframe.addEventListener('load', updateRefreshTime, { once: true });
+          });
+      });
+
+    </script>
+    
+    
+    <script>
+    
+        
+        // 在 beforeunload 事件中顯示提示訊息
+        window.addEventListener("beforeunload", function (event) {
+          // 設定提示訊息
+          const message = "您確定要離開這個頁面嗎？";
+            
+          // 設定事件的返回值，這樣瀏覽器會顯示自定義的提示訊息
+          event.preventDefault();
+          event.returnValue = "您確定要離開這個頁面嗎？";
+
+        });
+        
+        
+        // 監聽整個文檔的 dblclick 事件
+        document.body.addEventListener('dblclick', function(event) {
+          copySelectedText();
+        });
+		
+        function copySelectedText() {
+            // 獲取當前選中的文字
+            var selectedText = window.getSelection().toString();
+
+            if (selectedText) {
+                // 使用 Clipboard API 複製選中的文字
+                navigator.clipboard.writeText(selectedText).then(function() {
+                    //alert("已複製: " + selectedText);
+                }).catch(function(err) {
+                    alert("複製失敗: " + err);
+                });
+            } else {
+                alert("請選取一些文字後再試！");
+            }
+        }
+        
+    </script>
+</body>
+
+
+  <body>
+  
+    <div>
+      <strong>可以將下面複製到txt當作sample自行編輯，另存成txt吃進來就可以嚕：</strong>
+      <!-- 文字說明區域，使用 info-box 類別添加邊框 -->
+      <div class="info-box">
+        <strong>文字檔格式說明：</strong><br>
+        項目title, 網址<br>
+        案件title, 案件編號, 系統編號<br><br>
+        EIP入口網,http://eip.cht-pt.com.tw/EIP_MyPAGE.aspx<br>
+        123-J750-XM1_LQFP100_4DUT-A1~~D01, 2024110440, 23960<br>
+      </div>
+    </div>
+
+
+        <div class="widget-body" style="display: none;">
+          <!-- 顯示上次刷新時間 -->
+          <p id="lastRefreshTime">上次刷新時間: 尚未刷新</p>
+          
+            <!-- 確認框&用戶輸入自定義刷新間隔 -->
+          <div>
+            <input type="checkbox" id="confirmRefresh"> <label for="confirmRefresh">自動刷新→</label>
+            <label for="refreshInterval">間隔（秒）:</label>
+            <input type="number" id="refreshInterval" value="30" min="10" style="width: 40px;">
+          </div>
+          
+          <!-- 觸發重新整理的按鈕 -->
+          <button id="manualRefreshButton">手動刷新</button>
+          <iframe id="iframe_reflash" frameborder="0" scrolling="auto" src="http://tyerpap1/EIPPlugIn/EIPPage/ToDoList.aspx?AccountID=MTMxMDAz" height="162px" width="100%"></iframe>
+          <br>
+          
+          <label for="Jobnumber">J/N:</label>
+          <input type="text" id="Jobnumber" style="width: 60px;" oninput="convertToBase64()">
+          <button id="manualJobButton">確認</button>
+          <iframe id="myIframe" frameborder="0" scrolling="auto" src="" height="162px" width="100%"></iframe>
+
+          <button id="gethyFTHRMCntButton">擷取</button>
+
+          "文管&HR"<br>
+
+        </div>
+
+    <script>
+        // 將數字轉換為Base64編碼
+        function convertToBase64() {
+            // 獲取Jobnumber輸入框的值
+            const jobNumber = document.getElementById('Jobnumber').value;
+
+
+            // 將 refreshIframe 函數綁定到確認按鈕
+            document.getElementById('manualJobButton').addEventListener('click', function() {
+              // 檢查輸入的數字是否有效
+              if (jobNumber) {
+                  // 將數字轉為字串後再轉為Base64
+                  const base64Encoded = btoa(jobNumber.toString());
+  
+                  // 更新iframe的src URL，將編碼後的Base64值放入AccountID參數中
+                  const iframe = document.getElementById('myIframe');
+                  iframe.src = `http://tyerpap1/EIPPlugIn/EIPPage/ToDoList.aspx?AccountID=${base64Encoded}`;
+              }
+            });
+        }
+
+
+//fetch('http://tyerpap1/EIPPlugIn/EIPPage/ToDoList.aspx?AccountID=MTMxMDAz')
+//  .then(response => response.text())
+//  .then(data => console.log(data))
+//  .catch(error => console.error('Error:', error));
+  
+//var iframe = document.getElementById('myIframe');
+
+//iframe.onload = function() {
+
+    // 傳遞訊息給 iframe
+//    iframe.contentWindow.postMessage('getLink', '*');
+//    console.log('send to iframe');
+//};
+
+//window.addEventListener('message', function(event) {
+//console.log('recevie from iframe');
+    // 確保來自正確的父頁面
+//    if (event.origin !== 'http://yourparentdomain.com') {
+//        console.log('來自不安全來源的訊息');
+//        return;
+//    }
+
+    // 處理訊息
+//    if (event.data === 'getLink') {
+//        var link = document.getElementById('hyFTHRMCnt');
+//        console.log('feedback~');
+//        // 回傳訊息給父頁面
+//        if (link) {
+//            event.source.postMessage({ link: link.href }, event.origin);
+//        }
+//    }
+//});
+
+//let links = document.querySelectorAll('a');
+//let urls = Array.from(links).map(link => link.href);
+//console.log(urls);
+
+//let iframes = document.querySelectorAll('iframe');
+//let iframeUrls = Array.from(iframes).map(iframe => iframe.src);
+//console.log(iframeUrls);
+
+    </script>
+
+  </body>
+
+</html>
+
+
