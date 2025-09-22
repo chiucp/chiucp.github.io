@@ -522,8 +522,8 @@
       </div>
     </div>
 
-
-        <div class="widget-body" style="display: none;">
+<!--style="display: none;-->
+        <div class="widget-body" >
           <!-- 顯示上次刷新時間 -->
           <p id="lastRefreshTime">上次刷新時間: 尚未刷新</p>
           
@@ -538,16 +538,12 @@
           <button id="manualRefreshButton">手動刷新</button>
           <iframe id="iframe_reflash" frameborder="0" scrolling="auto" src="http://tyerpap1/EIPPlugIn/EIPPage/ToDoList.aspx?AccountID=MTMxMDAz" height="162px" width="100%"></iframe>
           <br>
-          
           <label for="Jobnumber">J/N:</label>
           <input type="text" id="Jobnumber" style="width: 60px;" oninput="convertToBase64()">
           <button id="manualJobButton">確認</button>
           <iframe id="myIframe" frameborder="0" scrolling="auto" src="" height="162px" width="100%"></iframe>
-
           <button id="gethyFTHRMCntButton">擷取</button>
-
           "文管&HR"<br>
-
         </div>
 
     <script>
@@ -570,53 +566,9 @@
               }
             });
         }
-
-
-//fetch('http://tyerpap1/EIPPlugIn/EIPPage/ToDoList.aspx?AccountID=MTMxMDAz')
-//  .then(response => response.text())
-//  .then(data => console.log(data))
-//  .catch(error => console.error('Error:', error));
-  
-//var iframe = document.getElementById('myIframe');
-
-//iframe.onload = function() {
-
-    // 傳遞訊息給 iframe
-//    iframe.contentWindow.postMessage('getLink', '*');
-//    console.log('send to iframe');
-//};
-
-//window.addEventListener('message', function(event) {
-//console.log('recevie from iframe');
-    // 確保來自正確的父頁面
-//    if (event.origin !== 'http://yourparentdomain.com') {
-//        console.log('來自不安全來源的訊息');
-//        return;
-//    }
-
-    // 處理訊息
-//    if (event.data === 'getLink') {
-//        var link = document.getElementById('hyFTHRMCnt');
-//        console.log('feedback~');
-//        // 回傳訊息給父頁面
-//        if (link) {
-//            event.source.postMessage({ link: link.href }, event.origin);
-//        }
-//    }
-//});
-
-//let links = document.querySelectorAll('a');
-//let urls = Array.from(links).map(link => link.href);
-//console.log(urls);
-
-//let iframes = document.querySelectorAll('iframe');
-//let iframeUrls = Array.from(iframes).map(iframe => iframe.src);
-//console.log(iframeUrls);
-
     </script>
-
   </body>
-
 </html>
+
 
 
