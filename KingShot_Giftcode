@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automated Redemption</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .input-group { margin-bottom: 10px; }
+        label { display: block; margin-bottom: 5px; }
+        input, textarea { width: 300px; padding: 8px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        #status { margin-top: 20px; color: green; }
+    </style>
+</head>
+<body>
+    <h1>Game Code Redemption (Automated for Multiple IDs)</h1>
+    
+    <div class="input-group">
+        <label for="ids">Box A: Account IDs (one per line or comma-separated)</label>
+        <textarea id="ids" rows="5" placeholder="Enter multiple IDs, e.g., ID1,ID2 or one per line"></textarea>
+    </div>
+    
+    <div class="input-group">
+        <label for="code">Box B: Redemption Code</label>
+        <input type="text" id="code" placeholder="Enter code">
+    </div>
+    
+    <button id="redeemBtn">Redeem for All Accounts</button>
+    
+    <div id="status"></div>
+
+    <script>
+        document.getElementById('redeemBtn').addEventListener('click', async () => {
+            const idsInput = document.getElementById('ids').value.trim();
+            const code = document.getElementById('code').value.trim();
+            const statusDiv = document.getElementById('status');
+            
+            if (!idsInput || !code) {
+                statusDiv.textContent = 'Please enter IDs and code.';
+                return;
+            }
+            
+            // Split IDs into array (handles commas or newlines)
+            const ids = idsInput.split(/[\n,]+/).map(id => id.trim()).filter(id => id);
+            
+            statusDiv.textContent = 'Processing...';
+            
+            for (const id of ids) {
+                try {
+                    // Step 1: Simulate login/verification with ID
+                    // Replace with actual API call, e.g., await fetch('https://example.com/login', { method: 'POST', body: JSON.stringify({ id }) });
+                    const loginResponse = await simulateLogin(id);  // Placeholder function
+                    
+                    if (loginResponse.success) {
+                        // Step 2: Redeem code after successful login
+                        // Replace with actual API call, e.g., await fetch('https://example.com/redeem', { method: 'POST', body: JSON.stringify({ id, code }) });
+                        const redeemResponse = await simulateRedeem(id, code);  // Placeholder function
+                        
+                        statusDiv.innerHTML += `<br>ID ${id}: ${redeemResponse.message || 'Success'}`;
+                    } else {
+                        statusDiv.innerHTML += `<br>ID ${id}: Login failed.`;
+                    }
+                } catch (error) {
+                    statusDiv.innerHTML += `<br>ID ${id}: Error - ${error.message}`;
+                }
+            }
+            
+            statusDiv.innerHTML += '<br>Done.';
+        });
+        
+        // Placeholder for login API simulation (high-level only)
+        async function simulateLogin(id) {
+            // Actual implementation: Send POST request to login endpoint with ID, handle auth token or session.
+            return { success: true };  // Mock response
+        }
+        
+        // Placeholder for redeem API simulation (high-level only)
+        async function simulateRedeem(id, code) {
+            // Actual implementation: Send POST request to redeem endpoint with ID and code, using auth from login.
+            return { message: 'Redeemed successfully' };  // Mock response
+        }
+    </script>
+</body>
+</html>
