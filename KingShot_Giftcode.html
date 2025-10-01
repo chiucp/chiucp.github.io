@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automated Redemption</title>
+    <title>自動兌換程式</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
+        body { font-family: Arial, 'Noto Sans TC', sans-serif; margin: 20px; }
         .input-group { margin-bottom: 10px; }
         label { display: block; margin-bottom: 5px; }
         input, textarea { width: 300px; padding: 8px; }
@@ -14,71 +14,82 @@
     </style>
 </head>
 <body>
-    <h1>Game Code Redemption (Automated for Multiple IDs)</h1>
+    <h1>遊戲兌換碼自動兌換</h1>
     
     <div class="input-group">
-        <label for="ids">Box A: Account IDs (one per line or comma-separated)</label>
-        <textarea id="ids" rows="5" placeholder="Enter multiple IDs, e.g., ID1,ID2 or one per line"></textarea>
+        <label for="ids">輸入框 A：帳號 ID（每行一個或以逗號分隔）</label>
+        <textarea id="ids" rows="5" placeholder="輸入多個 ID，例如：ID1,ID2 或每行一個"></textarea>
     </div>
     
     <div class="input-group">
-        <label for="code">Box B: Redemption Code</label>
-        <input type="text" id="code" placeholder="Enter code">
+        <label for="code">輸入框 B：兌換碼</label>
+        <input type="text" id="code" placeholder="輸入兌換碼">
     </div>
     
-    <button id="redeemBtn">Redeem for All Accounts</button>
+    <button id="redeemBtn">為所有帳號兌換</button>
     
     <div id="status"></div>
 
     <script>
+        // 載入儲存的 ID
+        window.onload = function() {
+            const savedIds = localStorage.getItem('accountIds');
+            if (savedIds) {
+                document.getElementById('ids').value = savedIds;
+            }
+        };
+
         document.getElementById('redeemBtn').addEventListener('click', async () => {
             const idsInput = document.getElementById('ids').value.trim();
             const code = document.getElementById('code').value.trim();
             const statusDiv = document.getElementById('status');
             
             if (!idsInput || !code) {
-                statusDiv.textContent = 'Please enter IDs and code.';
+                statusDiv.textContent = '請輸入帳號 ID 和兌換碼。';
                 return;
             }
             
-            // Split IDs into array (handles commas or newlines)
+            // 儲存 ID 到 localStorage
+            localStorage.setItem('accountIds', idsInput);
+            
+            // 分割 ID（支援逗號或換行）
             const ids = idsInput.split(/[\n,]+/).map(id => id.trim()).filter(id => id);
             
-            statusDiv.textContent = 'Processing...';
+            statusDiv.textContent = '處理中...';
             
             for (const id of ids) {
                 try {
-                    // Step 1: Simulate login/verification with ID
-                    // Replace with actual API call, e.g., await fetch('https://example.com/login', { method: 'POST', body: JSON.stringify({ id }) });
-                    const loginResponse = await simulateLogin(id);  // Placeholder function
+                    // 模擬登入/驗證步驟
+                    // 實際需替換為真實 API 呼叫，例如：await fetch('https://example.com/login', { method: 'POST', body: JSON.stringify({ id }) });
+                    const loginResponse = await simulateLogin(id);  // 佔位函數
                     
                     if (loginResponse.success) {
-                        // Step 2: Redeem code after successful login
-                        // Replace with actual API call, e.g., await fetch('https://example.com/redeem', { method: 'POST', body: JSON.stringify({ id, code }) });
-                        const redeemResponse = await simulateRedeem(id, code);  // Placeholder function
+                        // 模擬兌換碼操作
+                        // 實際需替換為真實 API 呼叫，例如：await fetch('https://example.com/redeem', { method: 'POST', body: JSON.stringify({ id, code }) });
+                        const redeemResponse = await simulateRedeem(id, code);  // 佔位函數
                         
-                        statusDiv.innerHTML += `<br>ID ${id}: ${redeemResponse.message || 'Success'}`;
+                        statusDiv.innerHTML += `<br>ID ${id}: ${redeemResponse.message || '兌換成功'}`;
                     } else {
-                        statusDiv.innerHTML += `<br>ID ${id}: Login failed.`;
+                        statusDiv.innerHTML += `<br>ID ${id}: 登入失敗`;
                     }
                 } catch (error) {
-                    statusDiv.innerHTML += `<br>ID ${id}: Error - ${error.message}`;
+                    statusDiv.innerHTML += `<br>ID ${id}: 錯誤 - ${error.message}`;
                 }
             }
             
-            statusDiv.innerHTML += '<br>Done.';
+            statusDiv.innerHTML += '<br>完成。';
         });
         
-        // Placeholder for login API simulation (high-level only)
+        // 模擬登入 API（僅高層次佔位）
         async function simulateLogin(id) {
-            // Actual implementation: Send POST request to login endpoint with ID, handle auth token or session.
-            return { success: true };  // Mock response
+            // 實際實現：發送 POST 請求到登入端點，處理認證 token 或 session
+            return { success: true };  // 模擬回應
         }
         
-        // Placeholder for redeem API simulation (high-level only)
+        // 模擬兌換 API（僅高層次佔位）
         async function simulateRedeem(id, code) {
-            // Actual implementation: Send POST request to redeem endpoint with ID and code, using auth from login.
-            return { message: 'Redeemed successfully' };  // Mock response
+            // 實際實現：發送 POST 請求到兌換端點，使用登入後的認證
+            return { message: '兌換成功' };  // 模擬回應
         }
     </script>
 </body>
