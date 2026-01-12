@@ -93,6 +93,7 @@ VIP666"></textarea><br>
                 <li><b>INVALID</b>　禮包碼不存在 / 錯誤</li>
                 <li><b>TIMEOUT RETRY</b>　伺服器要求重試</li>
 				<li><b>CDK NOT FOUND</b>　禮包碼錯誤</li>
+				<li><b>Login failed</b>　登入失敗 / 帳號不存在或錯誤</li>
             </ul>
         </div>
     </div>
@@ -250,7 +251,7 @@ document.getElementById("start").addEventListener("click", async () => {
 				    log(`結果：${msg}`, "success");
 				} else if (msg.includes("RECEIVED")) {
 				    log(`結果：${msg}`, "received");
-				} else if (msg.includes("TIME ERROR") || msg.includes("USED")) {
+				} else if (msg.includes("TIME ERROR") || msg.includes("USED") || msg.includes("Login failed")) {
 				    log(`結果：${msg}`, "error");
 				} else if (msg.includes("TIMEOUT") || msg.includes("CDK")) {
 				    log(`結果：${msg}`, "warning");
