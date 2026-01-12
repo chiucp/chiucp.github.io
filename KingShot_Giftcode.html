@@ -30,67 +30,103 @@
     
     <div id="status"></div>
 
-    <script>
-        // 載入儲存的 ID
-        window.onload = function() {
-            const savedIds = localStorage.getItem('accountIds');
-            if (savedIds) {
-                document.getElementById('ids').value = savedIds;
-            }
-        };
+<script>
+    // 延遲工具函數
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 
-        document.getElementById('redeemBtn').addEventListener('click', async () => {
-            const idsInput = document.getElementById('ids').value.trim();
-            const code = document.getElementById('code').value.trim();
-            const statusDiv = document.getElementById('status');
-            
-            if (!idsInput || !code) {
-                statusDiv.textContent = '請輸入帳號 ID 和兌換碼。';
-                return;
-            }
-            
-            // 儲存 ID 到 localStorage
-            localStorage.setItem('accountIds', idsInput);
-            
-            // 分割 ID（支援逗號或換行）
-            const ids = idsInput.split(/[\n,]+/).map(id => id.trim()).filter(id => id);
-            
-            statusDiv.textContent = '處理中...';
-            
-            for (const id of ids) {
-                try {
-                    // 模擬登入/驗證步驟
-                    // 實際需替換為真實 API 呼叫，例如：await fetch('https://example.com/login', { method: 'POST', body: JSON.stringify({ id }) });
-                    const loginResponse = await simulateLogin(id);  // 佔位函數
-                    
-                    if (loginResponse.success) {
-                        // 模擬兌換碼操作
-                        // 實際需替換為真實 API 呼叫，例如：await fetch('https://example.com/redeem', { method: 'POST', body: JSON.stringify({ id, code }) });
-                        const redeemResponse = await simulateRedeem(id, code);  // 佔位函數
-                        
-                        statusDiv.innerHTML += `<br>ID ${id}: ${redeemResponse.message || '兌換成功'}`;
-                    } else {
-                        statusDiv.innerHTML += `<br>ID ${id}: 登入失敗`;
-                    }
-                } catch (error) {
-                    statusDiv.innerHTML += `<br>ID ${id}: 錯誤 - ${error.message}`;
+    // 載入儲存的 ID
+    window.onload = function() {
+        const savedIds = localStorage.getItem('accountIds');
+        if (savedIds) {
+            document.getElementById('ids').value = savedIds;
+        }
+    };
+
+    document.getElementById('redeemBtn').addEventListener('click', async () => {
+        const idsInput = document.getElementById('ids').value.trim();
+        const code = document.getElementById('code').value.trim();
+        const statusDiv = document.getElementById('status');
+
+        if (!idsInput || !code) {
+            statusDiv.innerHTML = '<span style="color:red">請輸入帳號 ID 和兌換碼。</span>';
+            return;
+        }
+
+        // 儲存 ID 到 localStorage
+        localStorage.setItem('accountIds', idsInput);
+
+        // 分割 ID（支援逗號或換行）
+        const ids = idsInput.split(/[\n,]+/).map(id => id.trim()).filter(id => id);
+
+        statusDiv.innerHTML = '開始處理中...<br>';
+
+        for (const id of ids) {
+            statusDiv.innerHTML += `<br><strong>處理 ID: ${id}</strong><br>`;
+
+            try {
+                // 步驟1：模擬/真實登入或驗證玩家ID是否存在
+                const loginResponse = await simulateLogin(id);
+                statusDiv.innerHTML += `登入/驗證回應: ${JSON.stringify(loginResponse)}<br>`;
+
+                await delay(1200);  // 登入後等 1.2 秒再兌換（模擬真人）
+
+                // 步驟2：兌換
+                const redeemResponse = await simulateRedeem(id, code);
+                const msg = redeemResponse.message || redeemResponse.msg || '兌換成功';
+
+                if (redeemResponse.success || redeemResponse.code === 0) {  // 根據實際回應調整判斷
+                    statusDiv.innerHTML += `<span style="color:green">ID ${id}: ${msg}</span><br>`;
+                } else {
+                    statusDiv.innerHTML += `<span style="color:orange">ID ${id}: ${msg || '兌換失敗'}</span><br>`;
                 }
+            } catch (error) {
+                statusDiv.innerHTML += `<span style="color:red">ID ${id}: 錯誤 - ${error.message}</span><br>`;
             }
-            
-            statusDiv.innerHTML += '<br>完成。';
-        });
-        
-        // 模擬登入 API（僅高層次佔位）
-        async function simulateLogin(id) {
-            // 實際實現：發送 POST 請求到登入端點，處理認證 token 或 session
-            return { success: true };  // 模擬回應
+
+            await delay(2500);  // 每筆帳號處理完，等 2.5 秒再處理下一筆（最重要防 ban）
         }
-        
-        // 模擬兌換 API（僅高層次佔位）
-        async function simulateRedeem(id, code) {
-            // 實際實現：發送 POST 請求到兌換端點，使用登入後的認證
-            return { message: '兌換成功' };  // 模擬回應
+
+        statusDiv.innerHTML += '<br><strong style="color:blue">全部帳號處理完成！</strong>';
+    });
+
+    // 登入/驗證玩家（請根據真實 Network 請求調整）
+    async function simulateLogin(id) {
+        try {
+            const response = await fetch('https://ks-giftcode.centurygame.com/api/player', {  // 確認這是不是正確端點
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json' 
+                    // 如果是 form-urlencoded，改成 'application/x-www-form-urlencoded'
+                    // 可能需要額外 header 如 'User-Agent', 'Referer' 等
+                },
+                body: JSON.stringify({ playerId: id })  // 實際可能用 fid= 或其他欄位
+                // 如果是 form data： new URLSearchParams({ fid: id, time: Date.now(), sign: '計算出來的sign' })
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } catch (err) {
+            throw err;
         }
-    </script>
+    }
+
+    // 兌換函數（同樣請調整成真實請求）
+    async function simulateRedeem(id, code) {
+        try {
+            const response = await fetch('https://ks-giftcode.centurygame.com/api/gift_code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerId: id, giftCode: code })
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        } catch (err) {
+            throw err;
+        }
+    }
+</script>
 </body>
 </html>
