@@ -1,30 +1,45 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
+<html lang="zh-TW"><head>
     <meta charset="UTF-8">
-    <title>KS 自動兌換工具（單檔版）</title>
+    <title>KS 批次兌換工具（多帳號 × 多禮包碼）</title>
     <style>
         body { font-family: Arial, "Noto Sans TC", sans-serif; padding: 20px; }
-        textarea, input { width: 300px; padding: 8px; margin-bottom: 10px; }
-        button { padding: 10px 20px; }
-        #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; height: 300px; overflow-y: auto; }
+        textarea, input { width: 320px; height: 70px; padding: 8px; margin-bottom: 10px; }
+        button { padding: 10px 100px; }
+        #log {
+            white-space: pre-wrap;
+            background: #111;
+            color: #0f0;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-size: 13px;
+	    margin-top: 20px;          
+	}
     </style>
 </head>
 <body>
 
-<h2>KS 自動兌換（單一 HTML 版）</h2>
+<h2>KingShots 批次兌換（多帳號 × 多禮包碼）</h2>
 
-<textarea id="ids" rows="6" placeholder="一行一個 FID"></textarea><br>
-<input id="code" placeholder="輸入禮包碼"><br>
-<button id="start">開始兌換</button>
+<label>帳號 ID（每個ID請換行）</label><br>
+<textarea id="ids" rows="6" placeholder="例如：
+12345678
+23456789"></textarea><br>
+
+<label>禮包碼（每個禮包碼請換行）</label><br>
+<textarea id="codes" rows="6" placeholder="例如：
+KS2024
+WELCOME
+VIP666"></textarea><br>
+
+<button id="start">開始批次兌換</button><br>
 
 <div id="log"></div>
 
-<!-- MD5 函式庫 -->
+<!-- MD5 -->
 <script src="https://cdn.jsdelivr.net/npm/blueimp-md5@2.19.0/js/md5.min.js"></script>
 
 <script>
-/* ====== 直接對齊你 Python 的設定 ====== */
 const LOGIN_URL = "https://kingshot-giftcode.centurygame.com/api/player";
 const REDEEM_URL = "https://kingshot-giftcode.centurygame.com/api/gift_code";
 const SECRET = "mN4!pQs6JrYwV9";
@@ -39,7 +54,7 @@ function log(msg) {
     logBox.scrollTop = logBox.scrollHeight;
 }
 
-/* ====== 完整對齊 Python 的 encode_data ====== */
+/* 對齊 Python encode_data */
 function encodeData(data) {
     const sortedKeys = Object.keys(data).sort();
     const encoded = sortedKeys.map(key => {
@@ -51,35 +66,26 @@ function encodeData(data) {
     return { sign, ...data };
 }
 
-/* ====== 發送請求（對齊 requests.post(json=payload)） ====== */
 async function makeRequest(url, payload) {
     const res = await fetch(url, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     });
 
-    if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-    }
-
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
-/* ====== 完整對齊 Python 的 redeem_gift_code ====== */
 async function redeemGiftCode(fid, cdk) {
     if (!/^\d+$/.test(fid)) {
         return { msg: "Invalid FID format" };
     }
 
-    const now = Date.now();
-
     // === Login ===
     const loginPayload = encodeData({
         fid: fid,
-        time: now
+        time: Date.now()
     });
 
     const loginData = await makeRequest(LOGIN_URL, loginPayload);
@@ -91,7 +97,7 @@ async function redeemGiftCode(fid, cdk) {
     const nickname = loginData.data?.nickname || "Unknown";
     log(`登入成功：${nickname} (${fid})`);
 
-    await delay(500); // 模擬 Python 中間的節奏
+    await delay(500);
 
     // === Redeem ===
     const redeemPayload = encodeData({
@@ -104,37 +110,43 @@ async function redeemGiftCode(fid, cdk) {
     return redeemData;
 }
 
-/* ====== 主流程 ====== */
+/* ====== 主流程：多帳號 × 多禮包碼 ====== */
 document.getElementById("start").addEventListener("click", async () => {
     const idsRaw = document.getElementById("ids").value.trim();
-    const code = document.getElementById("code").value.trim();
+    const codesRaw = document.getElementById("codes").value.trim();
 
-    if (!idsRaw || !code) {
-        alert("請輸入 FID 與 禮包碼");
+    if (!idsRaw || !codesRaw) {
+        alert("請輸入帳號 FID 與 禮包碼");
         return;
     }
 
     const ids = idsRaw.split(/[\n,]+/).map(i => i.trim()).filter(Boolean);
+    const codes = codesRaw.split(/[\n,]+/).map(c => c.trim()).filter(Boolean);
 
-    log("=== 開始兌換 ===");
+    log("=== 開始批次兌換（多帳號 × 多禮包碼） ===");
 
     for (const fid of ids) {
-        log(`處理 ${fid} ...`);
+        log(`\n====== 處理帳號 ${fid} ======`);
 
-        try {
-            const result = await redeemGiftCode(fid, code);
-            log(`結果：${result.msg || JSON.stringify(result)}`);
-        } catch (e) {
-            log(`錯誤：${e.message}`);
+        for (const code of codes) {
+            log(`→ 兌換禮包碼：${code}`);
+
+            try {
+                const result = await redeemGiftCode(fid, code);
+                log(`結果：${result.msg || JSON.stringify(result)}`);
+            } catch (e) {
+                log(`錯誤：${e.message}`);
+            }
+
+            log(`等待 ${DELAY/1000} 秒...\n`);
+            await delay(DELAY);
         }
-
-        log(`等待 ${DELAY/1000} 秒...\n`);
-        await delay(DELAY);
     }
 
-    log("=== 全部完成 ===");
+    log("=== 全部帳號 × 禮包碼 處理完成 ===");
 });
 </script>
 
-</body>
-</html>
+
+
+</body></html>
