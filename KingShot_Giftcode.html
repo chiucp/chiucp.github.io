@@ -42,7 +42,7 @@
 		    background: #fffaf5;
 		    color: #7f7f7f;
 		    font-size: 15px;
-		    line-height: 1.8;
+		    line-height: 1;
 		    box-shadow: 0 0 10px rgba(255,122,0,0.15);
 			width: 500px;
 		}
@@ -92,6 +92,7 @@ VIP666"></textarea><br>
                 <li><b>USED</b>　禮包碼達領取上限</li>
                 <li><b>INVALID</b>　禮包碼不存在 / 錯誤</li>
                 <li><b>TIMEOUT RETRY</b>　伺服器要求重試</li>
+				<li><b>CDK NOT FOUND</b>　禮包碼錯誤</li>
             </ul>
         </div>
     </div>
@@ -251,7 +252,7 @@ document.getElementById("start").addEventListener("click", async () => {
 				    log(`結果：${msg}`, "received");
 				} else if (msg.includes("TIME ERROR") || msg.includes("USED")) {
 				    log(`結果：${msg}`, "error");
-				} else if (msg.includes("TIMEOUT")) {
+				} else if (msg.includes("TIMEOUT") || msg.includes("CDK")) {
 				    log(`結果：${msg}`, "warning");
 				} else {
 				    log(`結果：${msg}`, "info");
