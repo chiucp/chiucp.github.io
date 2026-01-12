@@ -3,8 +3,8 @@
     <title>KS 批次兌換工具（多帳號 × 多禮包碼）</title>
     <style>
         body { font-family: Arial, "Noto Sans TC", sans-serif; padding: 20px; }
-        textarea, input { width: 320px; height: 70px; padding: 5px; margin-bottom: 10px; }
-        button { padding: 10px 100px; }
+        textarea, input { width: 320px; height: 70px; padding: 8px; margin-bottom: 10px; }
+        button { width: 250px; padding: 10px ; margin-top: 10px;}
         #log {
             white-space: pre-wrap;
             background: #111;
@@ -13,32 +13,110 @@
             height: 300px;
             overflow-y: auto;
             font-size: 13px;
-		    margin-top: 20px;          
-	}
+		    margin-top: 20px;
+		}
+		.log-success { color: #00ff6a; }     /* 綠色 */
+		.log-received { color: #aaaaaa; }    /* 灰色 */
+		.log-error { color: #ff4d4d; }       /* 紅色 */
+		.log-warning { color: #ffa500; }     /* 橘色 */
+		.log-info { color: #00bfff; }        /* 藍色 */
+
+		.container {
+		    display: flex;
+		    gap: 30px;
+		    align-items: flex-start;
+		}
+		
+		.left-panel {
+		    width: 420px;
+		}
+		
+		.right-panel {
+		    flex: 1;
+		}
+		
+		.info-box {
+		    border: 2px solid #7f7f7f;
+		    padding: 20px;
+		    border-radius: 8px;
+		    background: #fffaf5;
+		    color: #7f7f7f;
+		    font-size: 15px;
+		    line-height: 1.8;
+		    box-shadow: 0 0 10px rgba(255,122,0,0.15);
+			width: 500px;
+		}
+		
+		.info-box h3 {
+		    margin-top: 0;
+		    color: #7f7f7f;
+		}
+		
+		.info-box ul {
+		    padding-left: 20px;
+		    margin: 0;
+		}
+		
+		.info-box li {
+		    margin-bottom: 6px;
+		}
+
     </style>
 </head>
 <body>
-
 <h2>KingShots 批次兌換（多帳號 × 多禮包碼）</h2>
-
-<label>帳號 ID（每個ID請換行）</label><br>
-<textarea id="ids" rows="6" placeholder="例如：
+<div class="container">
+    <div class="left-panel">
+		<label>帳號 ID（每個ID請換行）</label><br>
+		<textarea id="ids" rows="6" placeholder="例如：
 12345678
 23456789"></textarea><br>
-
-<label>禮包碼（每個禮包碼請換行）</label><br>
-<textarea id="codes" rows="6" placeholder="例如：
+		
+		<label>禮包碼（每個禮包碼請換行）</label><br>
+		<textarea id="codes" rows="6" placeholder="例如：
 KS2024
-WELCOME
 VIP666"></textarea><br>
+		
+		<button id="start">開始批次兌換</button><br>
+		<button id="clear">清除快取</button>
 
-<button id="start">開始批次兌換</button><br>
+    </div>
+
+    <div class="right-panel">
+        <div class="info-box">
+            <h3>狀態說明</h3>
+            <ul>
+                <li><b>SUCCESS</b>　成功兌換</li>
+                <li><b>RECEIVED</b>　已經兌換過（已領取）</li>
+                <li><b>TIME ERROR</b>　禮包碼過期</li>
+                <li><b>USED</b>　禮包碼達領取上限</li>
+                <li><b>INVALID</b>　禮包碼不存在 / 錯誤</li>
+                <li><b>TIMEOUT RETRY</b>　伺服器要求重試</li>
+            </ul>
+        </div>
+    </div>
+</div>
+	
+
 
 <div id="log"></div>
 
 <!-- MD5 -->
 <script src="https://cdn.jsdelivr.net/npm/blueimp-md5@2.19.0/js/md5.min.js"></script>
-
+<script> 
+	window.addEventListener("DOMContentLoaded", () => {
+	    const savedIds = localStorage.getItem("ks_ids");
+	    const savedCodes = localStorage.getItem("ks_codes");
+	
+	    if (savedIds) {
+	        document.getElementById("ids").value = savedIds;
+	    }
+	
+	    if (savedCodes) {
+	        document.getElementById("codes").value = savedCodes;
+	    }
+	});
+</script>
 <script>
 const LOGIN_URL = "https://kingshot-giftcode.centurygame.com/api/player";
 const REDEEM_URL = "https://kingshot-giftcode.centurygame.com/api/gift_code";
@@ -48,9 +126,23 @@ const DELAY = 2000; // 2 秒
 const logBox = document.getElementById("log");
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
+/*
 function log(msg) {
     const time = new Date().toLocaleTimeString();
     logBox.textContent += `[${time}] ${msg}\n`;
+    logBox.scrollTop = logBox.scrollHeight;
+}
+*/
+function log(msg, type = "info") {
+    const time = new Date().toLocaleTimeString();
+
+    let className = "log-info";
+    if (type === "success") className = "log-success";
+    if (type === "received") className = "log-received";
+    if (type === "error") className = "log-error";
+    if (type === "warning") className = "log-warning";
+
+    logBox.innerHTML += `<div class="${className}">[${time}] ${msg}</div>`;
     logBox.scrollTop = logBox.scrollHeight;
 }
 
@@ -110,14 +202,31 @@ async function redeemGiftCode(fid, cdk) {
     return redeemData;
 }
 
+/*清除快取*/
+document.getElementById("clear").addEventListener("click", () => {
+    localStorage.removeItem("ks_ids");
+    localStorage.removeItem("ks_codes");
+    document.getElementById("ids").value = "";
+    document.getElementById("codes").value = "";
+    //alert("已清除儲存的帳號與禮包碼");
+	//log(`→ 已清除儲存的帳號與禮包碼`);
+	logBox.innerHTML += `<div class="log-error">→ 已清除儲存的帳號與禮包碼</div>`;
+});
+
+	
 /* ====== 主流程：多帳號 × 多禮包碼 ====== */
 document.getElementById("start").addEventListener("click", async () => {
     const idsRaw = document.getElementById("ids").value.trim();
     const codesRaw = document.getElementById("codes").value.trim();
+    // === 儲存到 localStorage ===
+    localStorage.setItem("ks_ids", idsRaw);
+    localStorage.setItem("ks_codes", codesRaw);
 
     if (!idsRaw || !codesRaw) {
-        alert("請輸入帳號 FID 與 禮包碼");
-        return;
+        //alert("請輸入帳號 ID 與 禮包碼");
+		//log(`→ 請輸入帳號 ID 與 禮包碼`);
+		logBox.innerHTML += `<div class="log-error">→ 請輸入帳號 ID 與 禮包碼</div>`;
+        return
     }
 
     const ids = idsRaw.split(/[\n,]+/).map(i => i.trim()).filter(Boolean);
@@ -133,7 +242,21 @@ document.getElementById("start").addEventListener("click", async () => {
 
             try {
                 const result = await redeemGiftCode(fid, code);
-                log(`結果：${result.msg || JSON.stringify(result)}`);
+                //log(`結果：${result.msg || JSON.stringify(result)}`);
+				const msg = result.msg || "";
+
+				if (msg.includes("SUCCESS")) {
+				    log(`結果：${msg}`, "success");
+				} else if (msg.includes("RECEIVED")) {
+				    log(`結果：${msg}`, "received");
+				} else if (msg.includes("TIME ERROR") || msg.includes("USED")) {
+				    log(`結果：${msg}`, "error");
+				} else if (msg.includes("TIMEOUT")) {
+				    log(`結果：${msg}`, "warning");
+				} else {
+				    log(`結果：${msg}`, "info");
+				}
+
             } catch (e) {
                 log(`錯誤：${e.message}`);
             }
