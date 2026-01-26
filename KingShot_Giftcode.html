@@ -1,7 +1,18 @@
 <html lang="zh-TW"><head>
     <meta charset="UTF-8">
-    <title>KS 批次兌換工具（多帳號 × 多禮包碼）</title>
+    <title>KS 批次兌換工具（多帳號 × 多禮包碼）v2.0 </title>
     <style>
+		.version-box {
+		    position: fixed;
+		    top: 10px;
+		    right: 15px;
+		    font-size: 12px;
+		    color: #666;
+		    text-align: right;
+		    line-height: 1.5;
+		    font-family: monospace;
+		}
+		
         body { font-family: Arial, "Noto Sans TC", sans-serif; padding: 20px; }
         textarea, input { width: 320px; height: 70px; padding: 8px; margin-bottom: 10px; }
         button { width: 250px; padding: 10px ; margin-top: 10px;}
@@ -64,6 +75,13 @@
     </style>
 </head>
 <body>
+<div class="version-box">
+    KS Redeemer Tool<br>
+    Version: v1.3 (Single-Login Multi-Code)<br>
+    Build: 2026-01-26<br>
+    Mode: Github HTML
+</div>
+	
 <h2>KingShots 批次兌換（多帳號 × 多禮包碼）</h2>
 <div class="container">
     <div class="left-panel">
@@ -236,6 +254,9 @@ document.getElementById("start").addEventListener("click", async () => {
 
     log("=== 開始批次兌換（多帳號 × 多禮包碼） ===");
 
+
+	//主程式
+	/*test
     for (const fid of ids) {
         log(`\n====== 處理帳號 ${fid} ======`);
 
@@ -267,6 +288,65 @@ document.getElementById("start").addEventListener("click", async () => {
             await delay(DELAY);
         }
     }
+
+	test*/
+
+	for (const fid of ids) {
+    log(`\n====== 處理帳號 ${fid} ======`);
+
+    // === 只登入一次 ===
+    const loginPayload = encodeData({
+        fid: fid,
+        time: Date.now()
+    });
+
+    try {
+        const loginData = await makeRequest(LOGIN_URL, loginPayload);
+
+        if (loginData.code !== 0) {
+            log(`登入失敗：${loginData.msg}`, "error");
+            continue; // 這個帳號跳過
+        }
+
+        const nickname = loginData.data?.nickname || "Unknown";
+        log(`登入成功：${nickname} (${fid})`, "success");
+
+    } catch (e) {
+        log(`登入錯誤：${e.message}`, "error");
+        continue;
+    }
+
+    // === 登入成功後，開始兌換所有 code ===
+    for (const code of codes) {
+        log(`→ 兌換禮包碼：${code}`, "info");
+
+        try {
+            const redeemPayload = encodeData({
+                fid: fid,
+                cdk: code,
+                time: Date.now()
+            });
+
+            const result = await makeRequest(REDEEM_URL, redeemPayload);
+            const msg = result.msg || "";
+
+            if (msg.includes("SUCCESS") || msg.includes("SAME TYPE EXCHANGE")) {
+                log(`結果：${msg}`, "success");
+            } else if (msg.includes("RECEIVED")) {
+                log(`結果：${msg}`, "received");
+            } else if (msg.includes("TIME ERROR") || msg.includes("USED")) {
+                log(`結果：${msg}`, "error");
+            } else {
+                log(`結果：${msg}`, "warning");
+            }
+
+        } catch (e) {
+            log(`兌換錯誤：${e.message}`, "error");
+        }
+
+        await delay(DELAY); // 每個禮包碼之間延遲
+    }
+}
 
     log("=== 全部帳號 × 禮包碼 處理完成 ===");
 });
