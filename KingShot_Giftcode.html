@@ -123,6 +123,36 @@ VIP666"></textarea><br>
 
 <!-- MD5 -->
 <script src="https://cdn.jsdelivr.net/npm/blueimp-md5@2.19.0/js/md5.min.js"></script>
+
+<script>
+	async function fetchCodesFromSite() {
+	    try {
+	        log("從 ks-rewards API 抓取禮包碼...", "info");
+	
+	        const res = await fetch("https://ks-rewards.com/api/codes");
+	        const data = await res.json();
+	
+	        // 看 API 結構（通常會是這樣）
+	        const codes = data.codes
+	            .filter(item => item.status === "active")
+	            .map(item => item.code);
+		console.log(data);
+	
+	        log(`成功抓到 ${codes.length} 個 Active Code`, "success");
+	
+	        return codes;
+	
+	    } catch (err) {
+	        log("抓取 API 失敗：" + err.message, "error");
+	        return [];
+	    }
+	}
+	setTimeout(() => {
+	    const codes = fetchCodesFromSite();
+	    document.getElementById("giftCodes").value = codes.join(",");
+	}, 2000);
+</script>
+	
 <script> 
 	window.addEventListener("DOMContentLoaded", () => {
 	    const savedIds = localStorage.getItem("ks_ids");
