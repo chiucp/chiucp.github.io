@@ -30,7 +30,7 @@
 		.log-received { color: #aaaaaa; }    /* 灰色 */
 		.log-error { color: #ff4d4d; }       /* 紅色 */
 		.log-warning { color: #ffa500; }     /* 橘色 */
-		.log-info { color: #0f0; }        /* 藍色 */
+		.log-info { color: #0f0; }        /* 綠色 */
 
 		.container {
 		    display: flex;
@@ -77,8 +77,8 @@
 <body>
 <div class="version-box">
     KS Redeemer Tool<br>
-    Version: v2.1.1 (Single-Login Multi-Code)<br>
-    Build: 2026-02-04<br>
+    Version: v2.2.0 (Single-Login Multi-Code)<br>
+    Build: 2026-04-04<br>
     Mode: Github HTML
 </div>
 	
@@ -98,7 +98,7 @@ VIP666"></textarea><br>
 		<button id="start">開始批次兌換</button><br>
 		<button id="clear">清除快取</button>
 		<button id="fetchCodes" style="background-color: #ff7a00; color: white; border: none; cursor: pointer;">獲取最新禮包碼 (API)</button>
-		Refer to: <a href="https://ks-rewards.com/" target="_blank">ks-rewards</a><br>
+		Refer to: <a href="https://kingshot.net/gift-codes" target="_blank">kingshot.net</a><br>
     </div>
 
     <div class="right-panel">
@@ -126,52 +126,93 @@ VIP666"></textarea><br>
 <script src="https://cdn.jsdelivr.net/npm/blueimp-md5@2.19.0/js/md5.min.js"></script>
 
 <script>
-    // 修正後的抓取函式
-	async function fetchCodesFromSite() {
-		try {
-			log("從 API 嘗試抓取禮包碼...", "info");
-			// 注意：如果你是在本地端執行，可能仍會遇到 CORS 問題
-			const res = await fetch("https://ks-rewards.com/api/codes");
-			
-			if (!res.ok) throw new Error(`連線失敗 (${res.status})`);
-			
-			const data = await res.json();
-			
-			// 修正過濾邏輯：匹配 validation_status 為 "validated"
-			const codes = data.codes
-				.filter(item => item.validation_status === "validated") // 修正這裡
-				.map(item => item.code);
+    // ====== 從 kingshot.net/api/gift-codes 抓取 Active 禮包碼 ======
+    // 使用 corsproxy.io 作為主要 proxy，allorigins.win 作為備援
+    const KINGSHOT_API = "https://kingshot.net/api/gift-codes";
+    const PROXY_PRIMARY = "https://corsproxy.io/?";
+    const PROXY_FALLBACK = "https://api.allorigins.win/get?url=";
 
-			if (codes.length > 0) {
-				log(`成功抓到 ${codes.length} 個有效禮包碼：${codes.join(", ")}`, "success");
-				return codes;
-			} else {
-				log("API 內目前沒有狀態為 'validated' 的禮包碼", "warning");
-				return [];
-			}
-		} catch (err) {
-			log("抓取失敗：" + err.message, "error");
-			return [];
-		}
-	}
+    async function fetchCodesFromKingshot() {
+        log("從 kingshot.net 抓取最新 Active 禮包碼...", "info");
+
+        // 嘗試主要 proxy: corsproxy.io
+        try {
+            const url = PROXY_PRIMARY + encodeURIComponent(KINGSHOT_API);
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                return parseKingshotCodes(data, "corsproxy.io");
+            }
+        } catch (err) {
+            log("主要 Proxy (corsproxy.io) 失敗，嘗試備援...", "warning");
+        }
+
+        // 備援 proxy: allorigins.win（回傳格式不同，需解析 contents 欄位）
+        try {
+            const url = PROXY_FALLBACK + encodeURIComponent(KINGSHOT_API);
+            const res = await fetch(url);
+            if (res.ok) {
+                const wrapper = await res.json();
+                const data = JSON.parse(wrapper.contents);
+                return parseKingshotCodes(data, "allorigins.win");
+            }
+        } catch (err) {
+            log("備援 Proxy (allorigins.win) 也失敗：" + err.message, "error");
+        }
+
+        log("所有來源均無法取得禮包碼，請手動前往 kingshot.net/gift-codes 查看", "error");
+        return [];
+    }
+
+    function parseKingshotCodes(data, source) {
+        if (data.status !== "success" || !data.data || !data.data.giftCodes) {
+            log("API 回傳格式異常", "error");
+            return [];
+        }
+
+        const now = new Date();
+        const activeCodes = data.data.giftCodes.filter(item => {
+            // 過濾未過期的代碼
+            if (!item.expiresAt) return true; // 無到期日視為有效
+            return new Date(item.expiresAt) > now;
+        }).map(item => item.code);
+
+        const activeCount = data.data.activeCount || activeCodes.length;
+
+        if (activeCodes.length > 0) {
+            log(`[${source}] 成功取得 ${activeCodes.length} 個 Active 禮包碼：${activeCodes.join(", ")}`, "success");
+            // 顯示到期資訊
+            data.data.giftCodes.forEach(item => {
+                if (!item.expiresAt || new Date(item.expiresAt) > now) {
+                    const expiry = item.expiresAt
+                        ? "到期：" + new Date(item.expiresAt).toLocaleDateString("zh-TW")
+                        : "無到期日";
+                    log(`  → ${item.code}　（${expiry}）`, "info");
+                }
+            });
+        } else {
+            log("目前 kingshot.net 上沒有 Active 禮包碼", "warning");
+        }
+
+        return activeCodes;
+    }
 
     // 綁定按鈕事件
     document.getElementById("fetchCodes").addEventListener("click", async () => {
-        const codes = await fetchCodesFromSite();
+        const codes = await fetchCodesFromKingshot();
         if (codes.length > 0) {
             // 將代碼以換行方式填入 textarea
             document.getElementById("codes").value = codes.join("\n");
         }
     });
 
-    // 原有的啟動時自動抓取 (修正邏輯)
+    // 啟動時自動抓取
     window.addEventListener("load", async () => {
-        // 延遲兩秒自動嘗試抓取一次
         setTimeout(async () => {
             const savedCodes = localStorage.getItem("ks_codes");
             // 如果原本沒資料，才自動抓取
             if (!savedCodes) {
-                const codes = await fetchCodesFromSite();
+                const codes = await fetchCodesFromKingshot();
                 if (codes.length > 0) {
                     document.getElementById("codes").value = codes.join("\n");
                 }
@@ -203,13 +244,6 @@ const DELAY = 2000; // 2 秒
 const logBox = document.getElementById("log");
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
-/*
-function log(msg) {
-    const time = new Date().toLocaleTimeString();
-    logBox.textContent += `[${time}] ${msg}\n`;
-    logBox.scrollTop = logBox.scrollHeight;
-}
-*/
 function log(msg, type = "info") {
     const time = new Date().toLocaleTimeString();
 
@@ -285,8 +319,6 @@ document.getElementById("clear").addEventListener("click", () => {
     localStorage.removeItem("ks_codes");
     document.getElementById("ids").value = "";
     document.getElementById("codes").value = "";
-    //alert("已清除儲存的帳號與禮包碼");
-	//log(`→ 已清除儲存的帳號與禮包碼`);
 	logBox.innerHTML += `<div class="log-error">→ 已清除儲存的帳號與禮包碼</div>`;
 });
 
@@ -300,8 +332,6 @@ document.getElementById("start").addEventListener("click", async () => {
     localStorage.setItem("ks_codes", codesRaw);
 
     if (!idsRaw || !codesRaw) {
-        //alert("請輸入帳號 ID 與 禮包碼");
-		//log(`→ 請輸入帳號 ID 與 禮包碼`);
 		logBox.innerHTML += `<div class="log-error">→ 請輸入帳號 ID 與 禮包碼</div>`;
         return
     }
@@ -310,43 +340,6 @@ document.getElementById("start").addEventListener("click", async () => {
     const codes = codesRaw.split(/[\n,]+/).map(c => c.trim()).filter(Boolean);
 
     log("=== 開始批次兌換（多帳號 × 多禮包碼） ===");
-
-
-	//主程式
-	/*test
-    for (const fid of ids) {
-        log(`\n====== 處理帳號 ${fid} ======`);
-
-        for (const code of codes) {
-            log(`→ 兌換禮包碼：${code}`);
-
-            try {
-                const result = await redeemGiftCode(fid, code);
-                //log(`結果：${result.msg || JSON.stringify(result)}`);
-				const msg = result.msg || "";
-
-				if (msg.includes("SUCCESS")) {
-				    log(`結果：${msg}`, "success");
-				} else if (msg.includes("RECEIVED")) {
-				    log(`結果：${msg}`, "received");
-				} else if (msg.includes("TIME ERROR") || msg.includes("USED") || msg.includes("Login failed")) {
-				    log(`結果：${msg}`, "error");
-				} else if (msg.includes("TIMEOUT") || msg.includes("CDK")) {
-				    log(`結果：${msg}`, "warning");
-				} else {
-				    log(`結果：${msg}`, "info");
-				}
-
-            } catch (e) {
-                log(`錯誤：${e.message}`);
-            }
-
-            log(`等待 ${DELAY/1000} 秒...\n`);
-            await delay(DELAY);
-        }
-    }
-
-	test*/
 
 	for (const fid of ids) {
     log(`\n====== 處理帳號 ${fid} ======`);
