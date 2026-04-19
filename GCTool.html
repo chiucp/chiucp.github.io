@@ -34,6 +34,8 @@
   --bar6: #D4A017;
   --bar7: #E75480;
 }
+
+html { scroll-behavior: smooth; }
 body {
   font-family: "Segoe UI","Microsoft JhengHei","PingFang TC",Arial,sans-serif;
   background: var(--bg);
@@ -279,6 +281,28 @@ body {
 }
 .gc.weekend-col { background: #F0F2F5; }
 .gc.today-col   { border-right: 2px solid rgba(192,0,0,.5) !important; }
+.gc.holiday-us  { background: #FFF3E0; }
+.gc.holiday-tw  { background: #E8F5E9; }
+.gc.holiday-cn  { background: #FCE4EC; }
+.gc.holiday-us.weekend-col { background: #FFE0B2; }
+.gc.holiday-tw.weekend-col { background: #C8E6C9; }
+.gc.holiday-cn.weekend-col { background: #F8BBD9; }
+.gh-day.holiday-us-hd { background: #FF9800 !important; color: #fff !important; }
+.gh-day.holiday-tw-hd { background: #4CAF50 !important; color: #fff !important; }
+.gh-day.holiday-cn-hd { background: #E91E63 !important; color: #fff !important; }
+
+/* Holiday calendar checkboxes */
+.holiday-region-group {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 6px;
+  background: #F5F7FB; border: 1.5px solid var(--border);
+  font-size: 12.5px; font-weight: 600; cursor: pointer;
+  transition: border-color .15s, background .15s;
+  white-space: nowrap;
+}
+.holiday-region-group:hover { border-color: var(--primary-light); background: #EBF3FB; }
+.holiday-region-group input[type='checkbox'] { width:14px; height:14px; accent-color: var(--primary); cursor: pointer; }
+.holiday-flag { font-size: 14px; }
 
 /* Bar */
 .gantt-bar {
@@ -570,7 +594,7 @@ body {
     <div class="topbar-logo">📊</div>
     <div>
       <div class="topbar-title">Gantt Chart Tool 甘特圖工具</div>
-      <div class="topbar-subtitle" data-i18n="subtitle">Gantt Chart Tool 甘特圖工具 · HTML 版 · v1.13 · 2026-04-20</div>
+      <div class="topbar-subtitle" data-i18n="subtitle">Gantt Chart Tool 甘特圖工具 · HTML 版 · v1.23 · 2026-04-20</div>
     </div>
   </div>
   <div class="topbar-actions">
@@ -729,6 +753,26 @@ body {
         <label>顯示週末</label>
         <input type="checkbox" id="show-weekend" checked onchange="renderGantt()">
       </div>
+      <div class="setting-item" style="margin-left:8px;border-left:2px solid var(--border);padding-left:16px;gap:8px;">
+        <label data-i18n="lbl_holidays">假日行事曆</label>
+        <label class="holiday-region-group" title="美國聯邦假日">
+          <input type="checkbox" id="holiday-us" onchange="renderGantt()">
+          <span class="holiday-flag">🇺🇸</span>
+          <span data-i18n="lbl_holiday_us">美國</span>
+        </label>
+        <label class="holiday-region-group" title="台灣國定假日">
+          <input type="checkbox" id="holiday-tw" onchange="renderGantt()">
+          <span class="holiday-flag">🇹🇼</span>
+          <span data-i18n="lbl_holiday_tw">台灣</span>
+        </label>
+        <label class="holiday-region-group" title="中國法定假日">
+          <input type="checkbox" id="holiday-cn" onchange="renderGantt()">
+          <span class="holiday-flag">🇨🇳</span>
+          <span data-i18n="lbl_holiday_cn">中國</span>
+        </label>
+        <button class="btn btn-outline btn-sm" onclick="openHolidayManager()" id="btn-holiday-mgr" title="從網路更新假日資料或手動編輯台灣假日" style="margin-left:4px;font-size:12px;">🔄 更新假日資料</button>
+        <span id="holiday-last-update" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
+      </div>
     </div>
 
     <div class="action-bar">
@@ -807,16 +851,298 @@ body {
   </div>
 </div>
 
+<!-- ══ Holiday Manager Modal ════════════════════════════════ -->
+<div class="modal-overlay" id="holiday-modal">
+  <div class="modal" style="max-width:680px;width:95%;">
+    <h3>🔄 更新假日資料</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+      美國、台灣、中國假日均可從公開 API 自動抓取，資料將儲存至 localStorage，下次開啟自動讀取。
+    </p>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:0;">
+      <button class="btn btn-sm" id="hm-tab-auto" onclick="switchHMTab('auto')" style="border-radius:6px 6px 0 0;border-bottom:none;">&#127760; 自動抓取</button>
+      <button class="btn btn-outline btn-sm" id="hm-tab-info" onclick="switchHMTab('info')" style="border-radius:6px 6px 0 0;border-bottom:none;">&#8505;&#65039; 資料來源說明</button>
+    </div>
+
+    <!-- Tab: Auto fetch -->
+    <div id="hm-panel-auto">
+      <p style="font-size:13px;margin-bottom:12px;">選擇要抓取的年份與地區，點擊「開始抓取」即可自動從公開 API 抓取假日並儲存。台灣假日來自 <a href="https://github.com/ruyut/TaiwanCalendar" target="_blank">ruyut/TaiwanCalendar</a>，美國、中國來自 <a href="https://date.nager.at" target="_blank">Nager.Date API</a>。</p>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+        <label style="font-size:13px;font-weight:600;">起始年份：</label>
+        <input type="number" id="hm-year-start" value="2025" min="2020" max="2035" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;">
+        <label style="font-size:13px;font-weight:600;">結束年份：</label>
+        <input type="number" id="hm-year-end" value="2028" min="2020" max="2035" style="width:80px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;">
+          <input type="checkbox" id="hm-fetch-us" checked> 🇺🇸 美國
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;">
+          <input type="checkbox" id="hm-fetch-tw" checked> 🇹🇼 台灣
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;">
+          <input type="checkbox" id="hm-fetch-cn" checked> 🇨🇳 中國
+        </label>
+      </div>
+      <button class="btn btn-primary" onclick="fetchHolidays()" id="hm-fetch-btn">🔄 開始抓取</button>
+      <div id="hm-fetch-log" style="margin-top:14px;font-size:12.5px;color:var(--muted);min-height:40px;background:#F5F7FB;border-radius:6px;padding:10px 14px;display:none;"></div>
+    </div>
+
+    <!-- Tab: Info -->
+    <div id="hm-panel-info" style="display:none;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr style="background:var(--primary);color:#fff;">
+          <th style="padding:8px 12px;text-align:left;">&#x5730;&#x5340;</th>
+          <th style="padding:8px 12px;text-align:left;">&#x8CC7;&#x6599;&#x4F86;&#x6E90;</th>
+          <th style="padding:8px 12px;text-align:left;">&#x66F4;&#x65B0;&#x65B9;&#x5F0F;</th>
+          <th style="padding:8px 12px;text-align:left;">&#x8CC7;&#x6599;&#x7BC4;&#x570D;</th>
+        </tr></thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 12px;">🇺🇸 美國</td>
+            <td style="padding:8px 12px;"><a href="https://date.nager.at" target="_blank">Nager.Date API</a>（免費，無需 Key）</td>
+            <td style="padding:8px 12px;">自動抴取</td>
+            <td style="padding:8px 12px;">可抴取任意年份</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:#F7F9FD;">
+            <td style="padding:8px 12px;">🇨🇳 中國</td>
+            <td style="padding:8px 12px;"><a href="https://date.nager.at" target="_blank">Nager.Date API</a>（免費，無需 Key）</td>
+            <td style="padding:8px 12px;">自動抴取</td>
+            <td style="padding:8px 12px;">可抴取任意年份（包含春節連假展開）</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 12px;">🇹🇼 台灣</td>
+            <td style="padding:8px 12px;"><a href="https://github.com/ruyut/TaiwanCalendar" target="_blank">ruyut/TaiwanCalendar</a>（GitHub，免費）</td>
+            <td style="padding:8px 12px;">自動抓取</td>
+            <td style="padding:8px 12px;">可抓取任意年份（含補假、調休日）</td>
+          </tr>
+        </tbody>
+      </table>
+      <div id="hm-storage-status" style="margin-top:16px;font-size:12.5px;background:#F5F7FB;border-radius:6px;padding:12px 16px;"></div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:20px;">
+      <button class="btn btn-outline" onclick="closeHolidayManager()">&#x95DC;&#x9589;</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════════════════════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════════════════ -->
 <script>
 /* ── Constants ──────────────────────────────────────────── */
+const LS_HOLIDAY_KEY = 'ganttHolidayData_v1'; // localStorage key for fetched holiday data
+
 const BAR_COLORS = [
   '#4472C4','#3CB371','#ED7D31','#C00000',
   '#7030A0','#00B0A0','#D4A017','#E75480',
   '#1F6B75','#8B4513','#2E8B57','#B8860B'
 ];
+
+/* ── Holiday Calendars ─────────────────────────────────── */
+// Format: 'YYYY-MM-DD'
+const HOLIDAYS = {
+  us: new Set([
+    // 2025 US Federal Holidays
+    '2025-01-01','2025-01-20','2025-02-17','2025-05-26',
+    '2025-06-19','2025-07-04','2025-09-01','2025-10-13',
+    '2025-11-11','2025-11-27','2025-12-25',
+    // 2026 US Federal Holidays
+    '2026-01-01','2026-01-19','2026-02-16','2026-05-25',
+    '2026-06-19','2026-07-03','2026-09-07','2026-10-12',
+    '2026-11-11','2026-11-26','2026-12-25',
+    // 2027 US Federal Holidays
+    '2027-01-01','2027-01-18','2027-02-15','2027-05-31',
+    '2027-06-18','2027-07-05','2027-09-06','2027-10-11',
+    '2027-11-11','2027-11-25','2027-12-24',
+  ]),
+  tw: new Set([
+    // 2025 Taiwan National Holidays (actual observed dates)
+    '2025-01-01',
+    '2025-01-27','2025-01-28','2025-01-29','2025-01-30','2025-01-31','2025-02-04', // CNY
+    '2025-02-28', // 228
+    '2025-04-03','2025-04-04', // Ching Ming / Children's Day
+    '2025-05-01', // Labor Day
+    '2025-05-31', // Dragon Boat
+    '2025-09-28', // Confucius Birthday (new 2025)
+    '2025-10-10', // National Day
+    '2025-10-25', // Taiwan Retrocession Day (new 2025)
+    '2025-12-25', // Constitution Day (new 2025)
+    // 2026 Taiwan National Holidays
+    '2026-01-01', // New Year
+    '2026-02-14','2026-02-15','2026-02-16','2026-02-17','2026-02-18','2026-02-19','2026-02-20','2026-02-21','2026-02-22', // CNY 9-day
+    '2026-02-28', // 228 Peace Day
+    '2026-04-03','2026-04-04','2026-04-05','2026-04-06', // Ching Ming + Children's Day
+    '2026-05-01','2026-05-02','2026-05-03', // Labor Day
+    '2026-06-19','2026-06-20','2026-06-21', // Dragon Boat
+    '2026-09-25','2026-09-26','2026-09-27', // Mid-Autumn
+    '2026-09-28', // Confucius Birthday
+    '2026-10-09','2026-10-10', // National Day
+    '2026-10-25', // Taiwan Retrocession Day
+    '2026-12-25', // Constitution Day
+    // 2027 Taiwan (estimated)
+    '2027-01-01',
+    '2027-02-05','2027-02-06','2027-02-07','2027-02-08','2027-02-09','2027-02-10','2027-02-11','2027-02-12', // CNY
+    '2027-03-01', // 228 observed
+    '2027-04-05', // Ching Ming
+    '2027-05-01', // Labor Day
+    '2027-06-09', // Dragon Boat
+    '2027-09-28', // Confucius Birthday
+    '2027-10-10', // National Day
+    '2027-10-25', // Taiwan Retrocession Day
+    '2027-12-25', // Constitution Day
+  ]),
+  cn: new Set([
+    // 2025 China Public Holidays
+    '2025-01-01',
+    '2025-01-28','2025-01-29','2025-01-30','2025-01-31','2025-02-01','2025-02-02','2025-02-03','2025-02-04', // Spring Festival
+    '2025-04-04','2025-04-05','2025-04-06', // Ching Ming
+    '2025-05-01','2025-05-02','2025-05-03','2025-05-04','2025-05-05', // Labor Day
+    '2025-05-31','2025-06-01','2025-06-02', // Dragon Boat
+    '2025-10-01','2025-10-02','2025-10-03','2025-10-04','2025-10-05','2025-10-06','2025-10-07', // National Day
+    // 2026 China Public Holidays (official State Council notice)
+    '2026-01-01','2026-01-02','2026-01-03', // New Year
+    '2026-02-15','2026-02-16','2026-02-17','2026-02-18','2026-02-19','2026-02-20','2026-02-21','2026-02-22','2026-02-23', // Spring Festival
+    '2026-04-04','2026-04-05','2026-04-06', // Ching Ming
+    '2026-05-01','2026-05-02','2026-05-03','2026-05-04','2026-05-05', // Labor Day
+    '2026-06-19','2026-06-20','2026-06-21', // Dragon Boat
+    '2026-09-25','2026-09-26','2026-09-27', // Mid-Autumn
+    '2026-10-01','2026-10-02','2026-10-03','2026-10-04','2026-10-05','2026-10-06','2026-10-07', // National Day
+    // 2027 China (estimated)
+    '2027-01-01','2027-01-02','2027-01-03',
+    '2027-02-06','2027-02-07','2027-02-08','2027-02-09','2027-02-10','2027-02-11','2027-02-12','2027-02-13','2027-02-14', // Spring Festival
+    '2027-04-05','2027-04-06','2027-04-07', // Ching Ming
+    '2027-05-01','2027-05-02','2027-05-03','2027-05-04','2027-05-05', // Labor Day
+    '2027-06-28','2027-06-29','2027-06-30', // Dragon Boat
+    '2027-10-01','2027-10-02','2027-10-03','2027-10-04','2027-10-05','2027-10-06','2027-10-07', // National Day
+  ]),
+};
+
+// Holiday name lookup for tooltip
+const HOLIDAY_NAMES = {
+  us: {
+    '2025-01-01':'New Year\'s Day','2025-01-20':'MLK Day','2025-02-17':'Presidents\' Day',
+    '2025-05-26':'Memorial Day','2025-06-19':'Juneteenth','2025-07-04':'Independence Day',
+    '2025-09-01':'Labor Day','2025-10-13':'Columbus Day','2025-11-11':'Veterans Day',
+    '2025-11-27':'Thanksgiving','2025-12-25':'Christmas',
+    '2026-01-01':'New Year\'s Day','2026-01-19':'MLK Day','2026-02-16':'Presidents\' Day',
+    '2026-05-25':'Memorial Day','2026-06-19':'Juneteenth','2026-07-03':'Independence Day (obs.)',
+    '2026-09-07':'Labor Day','2026-10-12':'Columbus Day','2026-11-11':'Veterans Day',
+    '2026-11-26':'Thanksgiving','2026-12-25':'Christmas',
+  },
+  tw: {
+    '2026-01-01':'元旦','2026-02-14':'春節假期','2026-02-15':'春節','2026-02-16':'春節',
+    '2026-02-17':'春節','2026-02-18':'春節','2026-02-19':'春節','2026-02-20':'春節',
+    '2026-02-21':'春節','2026-02-22':'春節','2026-02-28':'和平紀念日',
+    '2026-04-03':'兒童節/清明連假','2026-04-04':'兒童節','2026-04-05':'清明節','2026-04-06':'清明連假',
+    '2026-05-01':'勞動節','2026-05-02':'勞動連假','2026-05-03':'勞動連假',
+    '2026-06-19':'端午節','2026-06-20':'端午連假','2026-06-21':'端午連假',
+    '2026-09-25':'中秋節','2026-09-26':'中秋連假','2026-09-27':'中秋連假',
+    '2026-09-28':'孔子誕辰紀念日','2026-10-09':'國慶連假','2026-10-10':'國慶日',
+    '2026-10-25':'台灣光復節','2026-12-25':'行憲紀念日',
+  },
+  cn: {
+    '2026-01-01':'元旦','2026-01-02':'元旦假期','2026-01-03':'元旦假期',
+    '2026-02-15':'春節','2026-02-16':'春節','2026-02-17':'春節','2026-02-18':'春節',
+    '2026-02-19':'春節','2026-02-20':'春節','2026-02-21':'春節','2026-02-22':'春節','2026-02-23':'春節',
+    '2026-04-04':'清明節','2026-04-05':'清明節','2026-04-06':'清明節',
+    '2026-05-01':'勞動節','2026-05-02':'勞動節','2026-05-03':'勞動節','2026-05-04':'勞動節','2026-05-05':'勞動節',
+    '2026-06-19':'端午節','2026-06-20':'端午節','2026-06-21':'端午節',
+    '2026-09-25':'中秋節','2026-09-26':'中秋節','2026-09-27':'中秋節',
+    '2026-10-01':'國慶節','2026-10-02':'國慶節','2026-10-03':'國慶節',
+    '2026-10-04':'國慶節','2026-10-05':'國慶節','2026-10-06':'國慶節','2026-10-07':'國慶節',
+  },
+};
+
+/* ── Holiday Storage Merge ──────────────────────────── */
+// 將 localStorage 中儲存的假日資料合併入 HOLIDAYS/HOLIDAY_NAMES
+function mergeStoredHolidays() {
+  try {
+    const raw = localStorage.getItem(LS_HOLIDAY_KEY);
+    if (!raw) return;
+    const stored = JSON.parse(raw);
+    if (!stored) return;
+
+    // Merge US
+    if (stored.us && stored.us.dates) {
+      stored.us.dates.forEach(d => HOLIDAYS.us.add(d));
+    }
+    if (stored.us && stored.us.names) {
+      Object.assign(HOLIDAY_NAMES.us, stored.us.names);
+    }
+
+    // Merge CN
+    if (stored.cn && stored.cn.dates) {
+      stored.cn.dates.forEach(d => HOLIDAYS.cn.add(d));
+    }
+    if (stored.cn && stored.cn.names) {
+      Object.assign(HOLIDAY_NAMES.cn, stored.cn.names);
+    }
+
+    // Merge TW
+    if (stored.tw && stored.tw.dates) {
+      stored.tw.dates.forEach(d => HOLIDAYS.tw.add(d));
+    }
+    if (stored.tw && stored.tw.names) {
+      Object.assign(HOLIDAY_NAMES.tw, stored.tw.names);
+    }
+
+    // Update last-update display
+    updateHolidayLastUpdate(stored.updatedAt);
+  } catch(e) { console.warn('mergeStoredHolidays error:', e); }
+}
+
+function updateHolidayLastUpdate(ts) {
+  const el = document.getElementById('holiday-last-update');
+  if (!el) return;
+  if (ts) {
+    const d = new Date(ts);
+    el.textContent = '更新於 ' + d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0');
+  } else {
+    el.textContent = '';
+  }
+}
+
+// Helper: format Date as YYYY-MM-DD (ISO) to match HOLIDAYS Set keys
+function fmtISO(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function getHolidayClasses(d) {
+  const key = fmtISO(d);
+  const cls = [];
+  if (document.getElementById('holiday-us') && document.getElementById('holiday-us').checked && HOLIDAYS.us.has(key)) cls.push('holiday-us');
+  if (document.getElementById('holiday-tw') && document.getElementById('holiday-tw').checked && HOLIDAYS.tw.has(key)) cls.push('holiday-tw');
+  if (document.getElementById('holiday-cn') && document.getElementById('holiday-cn').checked && HOLIDAYS.cn.has(key)) cls.push('holiday-cn');
+  return cls;
+}
+
+function getHolidayHeaderClass(d) {
+  const key = fmtISO(d);
+  // Priority: CN > TW > US
+  if (document.getElementById('holiday-cn') && document.getElementById('holiday-cn').checked && HOLIDAYS.cn.has(key)) return 'holiday-cn-hd';
+  if (document.getElementById('holiday-tw') && document.getElementById('holiday-tw').checked && HOLIDAYS.tw.has(key)) return 'holiday-tw-hd';
+  if (document.getElementById('holiday-us') && document.getElementById('holiday-us').checked && HOLIDAYS.us.has(key)) return 'holiday-us-hd';
+  return '';
+}
+
+function getHolidayTooltip(d) {
+  const key = fmtISO(d);
+  const parts = [];
+  if (document.getElementById('holiday-us') && document.getElementById('holiday-us').checked && HOLIDAYS.us.has(key)) {
+    const name = (HOLIDAY_NAMES.us && HOLIDAY_NAMES.us[key]) || 'US Holiday';
+    parts.push('\ud83c\uddfa\ud83c\uddf8 ' + name);
+  }
+  if (document.getElementById('holiday-tw') && document.getElementById('holiday-tw').checked && HOLIDAYS.tw.has(key)) {
+    const name = (HOLIDAY_NAMES.tw && HOLIDAY_NAMES.tw[key]) || '台灣假日';
+    parts.push('\ud83c\uddf9\ud83c\uddfc ' + name);
+  }
+  if (document.getElementById('holiday-cn') && document.getElementById('holiday-cn').checked && HOLIDAYS.cn.has(key)) {
+    const name = (HOLIDAY_NAMES.cn && HOLIDAY_NAMES.cn[key]) || '中國假日';
+    parts.push('\ud83c\udde8\ud83c\uddf3 ' + name);
+  }
+  return parts.join(' / ');
+}
 
 const WEEKDAY_NAMES_ZH = ['日','一','二','三','四','五','六'];
 const WEEKDAY_NAMES_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1050,8 +1376,12 @@ function renderGantt() {
     const wknd = isWeekend(dd);
     let cls = wknd ? 'weekend' : 'workday';
     if (isToday) cls = 'today-hd';
+    const hdCls = getHolidayHeaderClass(dd);
+    if (hdCls && !isToday) cls = hdCls;
     const wdName = getWeekdayNames()[dd.getDay()];
-    html += `<th class="gh-day ${cls}" style="width:${colW}px;min-width:${colW}px;" title="${fmtFull(dd)} (${wdName})">${fmtDate(dd,dateFmt)}</th>`;
+    const hdTip = getHolidayTooltip(dd);
+    const titleStr = hdTip ? `${fmtFull(dd)} (${wdName}) — ${hdTip}` : `${fmtFull(dd)} (${wdName})`;
+    html += `<th class="gh-day ${cls}" style="width:${colW}px;min-width:${colW}px;" title="${titleStr}">${fmtDate(dd,dateFmt)}</th>`;
   });
   html += '</tr>';
 
@@ -1078,6 +1408,8 @@ function renderGantt() {
       let cls = 'gc';
       if (wknd) cls += ' weekend-col';
       if (isToday) cls += ' today-col';
+      const hdClasses = getHolidayClasses(dd);
+      if (hdClasses.length) cls += ' ' + hdClasses.join(' ');
 
       let inner = '';
       if (sCol !== undefined && di === sCol && span > 0) {
@@ -1125,7 +1457,10 @@ function renderGantt() {
   }).join('') +
   `<div class="legend-item"><div class="legend-dot" style="background:#8899AA;"></div><span>${i18n.legend_weekend||'週末'}</span></div>` +
   (todayD >= minDate && todayD <= maxDate ? `<div class="legend-item"><div class="legend-dot" style="background:#C00000;border-radius:50%;"></div><span>${i18n.legend_today||'今日'}</span></div>` : '') +
-  (overdueCount > 0 ? `<div class="legend-item"><div class="legend-dot" style="background:#C00000;"></div><span>${i18n.legend_overdue||'逾期'}</span></div>` : '');
+  (overdueCount > 0 ? `<div class="legend-item"><div class="legend-dot" style="background:#C00000;"></div><span>${i18n.legend_overdue||'逆期'}</span></div>` : '') +
+  (document.getElementById('holiday-us') && document.getElementById('holiday-us').checked ? `<div class="legend-item"><div class="legend-dot" style="background:#FF9800;"></div><span>🇺🇸 ${i18n.lbl_holiday_us||'美國假日'}</span></div>` : '') +
+  (document.getElementById('holiday-tw') && document.getElementById('holiday-tw').checked ? `<div class="legend-item"><div class="legend-dot" style="background:#4CAF50;"></div><span>🇹🇼 ${i18n.lbl_holiday_tw||'台灣假日'}</span></div>` : '') +
+  (document.getElementById('holiday-cn') && document.getElementById('holiday-cn').checked ? `<div class="legend-item"><div class="legend-dot" style="background:#E91E63;"></div><span>🇨🇳 ${i18n.lbl_holiday_cn||'中國假日'}</span></div>` : '');
 
   showToast((i18n.toast_gantt_done||'甘特圖已產生').replace('{n}', validRows.length).replace('{d}', totalDays), 'success');
 }
@@ -1193,7 +1528,256 @@ function clearAll() {
   }
 }
 
-/* ── Auto Render ────────────────────────────────────────── */
+/* ── Holiday Manager Modal ────────────────────────── */
+function openHolidayManager() {
+  document.getElementById('holiday-modal').classList.add('show');
+  switchHMTab('auto');
+  // Show storage status in info tab
+  updateHMStorageStatus();
+  // Show last update time
+  try {
+    const raw = localStorage.getItem(LS_HOLIDAY_KEY);
+    if (raw) {
+      const stored = JSON.parse(raw);
+      updateHolidayLastUpdate(stored.updatedAt);
+    }
+  } catch(e) {}
+}
+
+function closeHolidayManager() {
+  document.getElementById('holiday-modal').classList.remove('show');
+}
+
+function switchHMTab(tab) {
+  ['auto','info'].forEach(t => {
+    const panel = document.getElementById('hm-panel-' + t);
+    const btn   = document.getElementById('hm-tab-' + t);
+    if (panel) panel.style.display = (t === tab) ? '' : 'none';
+    if (btn) {
+      btn.className = t === tab ? 'btn btn-sm' : 'btn btn-outline btn-sm';
+      btn.style.borderRadius = '6px 6px 0 0';
+    }
+  });
+  if (tab === 'info') updateHMStorageStatus();
+}
+
+function updateHMStorageStatus() {
+  const el = document.getElementById('hm-storage-status');
+  if (!el) return;
+  try {
+    const raw = localStorage.getItem(LS_HOLIDAY_KEY);
+    if (!raw) { el.innerHTML = '<span style="color:var(--muted);">localStorage 中尚無假日資料，請點擊「自動抓取」建立資料。</span>'; return; }
+    const stored = JSON.parse(raw);
+    const lines = [];
+    if (stored.updatedAt) lines.push('✅ 最後更新：' + new Date(stored.updatedAt).toLocaleString());
+    if (stored.us) lines.push('🇺🇸 美國：' + (stored.us.dates ? stored.us.dates.length : 0) + ' 筆假日已儲存');
+    if (stored.cn) lines.push('🇨🇳 中國：' + (stored.cn.dates ? stored.cn.dates.length : 0) + ' 筆假日已儲存');
+    if (stored.tw) lines.push('🇹🇼 台灣：' + (stored.tw.dates ? stored.tw.dates.length : 0) + ' 筆假日已儲存');
+    el.innerHTML = lines.join('<br>');
+  } catch(e) { el.textContent = '讀取儲存資料失敗'; }
+}
+
+// 自動抓取美國、台灣、中國假日
+async function fetchHolidays() {
+  const yearStart = parseInt(document.getElementById('hm-year-start').value) || 2025;
+  const yearEnd   = parseInt(document.getElementById('hm-year-end').value)   || 2028;
+  const fetchUS   = document.getElementById('hm-fetch-us').checked;
+  const fetchTW   = document.getElementById('hm-fetch-tw').checked;
+  const fetchCN   = document.getElementById('hm-fetch-cn').checked;
+
+  if (!fetchUS && !fetchTW && !fetchCN) { showToast('請至少勾選一個地區', 'error'); return; }
+  if (yearEnd < yearStart)  { showToast('結束年份不能小於起始年份', 'error'); return; }
+
+  const log = document.getElementById('hm-fetch-log');
+  const btn = document.getElementById('hm-fetch-btn');
+  log.style.display = 'block';
+  log.innerHTML = '正在抴取中…';
+  btn.disabled = true;
+  btn.textContent = '抴取中…';
+
+  // 中國春節連假展開規則（天數）
+  const CN_HOLIDAY_SPANS = {
+    '元旦': 3, '春节': 9, '清明节': 3, '勞動节': 5,
+    '端午节': 3, '中秋节': 3, '国庆节': 7
+  };
+
+  const newUS = { dates: [], names: {} };
+  const newTW = { dates: [], names: {} };
+  const newCN = { dates: [], names: {} };
+  const errors = [];
+
+  for (let y = yearStart; y <= yearEnd; y++) {
+    // Fetch TW via ruyut/TaiwanCalendar
+    if (fetchTW) {
+      try {
+        log.innerHTML += `<br>🇹🇼 抓取台灣 ${y} 年...`;
+        const resp = await fetch(`https://cdn.jsdelivr.net/gh/ruyut/TaiwanCalendar/data/${y}.json`);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        let count = 0;
+        data.forEach(d => {
+          if (d.isHoliday) {
+            // 日期格式從 YYYYMMDD 轉為 YYYY-MM-DD
+            const raw = String(d.date);
+            const key = raw.slice(0,4) + '-' + raw.slice(4,6) + '-' + raw.slice(6,8);
+            if (!newTW.dates.includes(key)) { newTW.dates.push(key); count++; }
+            newTW.names[key] = d.description || '台灣假日';
+          }
+        });
+        log.innerHTML += ` ✅ ${count} 天假日`;
+      } catch(e) {
+        errors.push(`台灣 ${y}: ${e.message}`);
+        log.innerHTML += ` ❌ 失敗`;
+      }
+    }
+
+    // Fetch US
+    if (fetchUS) {
+      try {
+        log.innerHTML += `<br>🇺🇸 抴取美國 ${y} 年...`;
+        const resp = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${y}/US`);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        data.forEach(h => {
+          if (!newUS.dates.includes(h.date)) newUS.dates.push(h.date);
+          newUS.names[h.date] = h.name;
+        });
+        log.innerHTML += ` ✅ ${data.length} 筆`;
+      } catch(e) {
+        errors.push(`美國 ${y}: ${e.message}`);
+        log.innerHTML += ` ❌ 失敗`;
+      }
+    }
+
+    // Fetch CN
+    if (fetchCN) {
+      try {
+        log.innerHTML += `<br>🇨🇳 抴取中國 ${y} 年...`;
+        const resp = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${y}/CN`);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        // 展開連假
+        data.forEach(h => {
+          const span = CN_HOLIDAY_SPANS[h.localName] || 1;
+          const base = new Date(h.date + 'T00:00:00');
+          for (let i = 0; i < span; i++) {
+            const dd = new Date(base); dd.setDate(dd.getDate() + i);
+            const key = dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + String(dd.getDate()).padStart(2,'0');
+            if (!newCN.dates.includes(key)) newCN.dates.push(key);
+            newCN.names[key] = h.localName;
+          }
+        });
+        log.innerHTML += ` ✅ ${data.length} 節日（展開後 ${newCN.dates.filter(d=>d.startsWith(y)).length} 天）`;
+      } catch(e) {
+        errors.push(`中國 ${y}: ${e.message}`);
+        log.innerHTML += ` ❌ 失敗`;
+      }
+    }
+  }
+
+  // 讀取現有 localStorage 資料，將新資料合並進去
+  let stored = {};
+  try { stored = JSON.parse(localStorage.getItem(LS_HOLIDAY_KEY) || '{}'); } catch(e) {}
+
+  if (fetchTW && newTW.dates.length) {
+    if (!stored.tw) stored.tw = { dates: [], names: {} };
+    newTW.dates.forEach(d => { if (!stored.tw.dates.includes(d)) stored.tw.dates.push(d); });
+    Object.assign(stored.tw.names, newTW.names);
+    newTW.dates.forEach(d => HOLIDAYS.tw.add(d));
+    Object.assign(HOLIDAY_NAMES.tw, newTW.names);
+  }
+  if (fetchUS && newUS.dates.length) {
+    if (!stored.us) stored.us = { dates: [], names: {} };
+    newUS.dates.forEach(d => { if (!stored.us.dates.includes(d)) stored.us.dates.push(d); });
+    Object.assign(stored.us.names, newUS.names);
+    // 將新資料合並入 HOLIDAYS Set
+    newUS.dates.forEach(d => HOLIDAYS.us.add(d));
+    Object.assign(HOLIDAY_NAMES.us, newUS.names);
+  }
+  if (fetchCN && newCN.dates.length) {
+    if (!stored.cn) stored.cn = { dates: [], names: {} };
+    newCN.dates.forEach(d => { if (!stored.cn.dates.includes(d)) stored.cn.dates.push(d); });
+    Object.assign(stored.cn.names, newCN.names);
+    newCN.dates.forEach(d => HOLIDAYS.cn.add(d));
+    Object.assign(HOLIDAY_NAMES.cn, newCN.names);
+  }
+
+  stored.updatedAt = new Date().toISOString();
+  localStorage.setItem(LS_HOLIDAY_KEY, JSON.stringify(stored));
+  updateHolidayLastUpdate(stored.updatedAt);
+
+  btn.disabled = false;
+  btn.textContent = '🔄 開始抴取';
+
+  const total = (fetchTW ? newTW.dates.length : 0) + (fetchUS ? newUS.dates.length : 0) + (fetchCN ? newCN.dates.length : 0);
+  if (errors.length === 0) {
+    log.innerHTML += `<br><strong style="color:var(--success);">&#x2705; 完成！共儲存 ${total} 筆假日資料。重新產生甘特圖即可生效。</strong>`;
+    showToast(`假日資料已更新（${total} 筆）`, 'success');
+  } else {
+    log.innerHTML += `<br><span style="color:var(--accent);">&#x26A0;&#xFE0F; 部分抴取失敗：${errors.join(', ')}</span>`;
+    showToast('部分抴取失敗，請檢查網路', 'error');
+  }
+  updateHMStorageStatus();
+}
+
+// 儲存台灣假日
+function saveTWHolidays() {
+  const text = document.getElementById('hm-tw-input').value.trim();
+  const log  = document.getElementById('hm-tw-log');
+  if (!text) { log.textContent = '請輸入假日資料'; return; }
+
+  const newTW = { dates: [], names: {} };
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  let ok = 0, skip = 0;
+
+  lines.forEach(line => {
+    const m = line.trim().match(/^(\d{4}-\d{2}-\d{2})\s*(.*)$/);
+    if (m) {
+      const date = m[1], name = m[2].trim() || '台灣假日';
+      if (!newTW.dates.includes(date)) newTW.dates.push(date);
+      newTW.names[date] = name;
+      ok++;
+    } else { skip++; }
+  });
+
+  if (!ok) { log.textContent = '沒有有效資料，請檢查格式（YYYY-MM-DD 假日名稱）'; return; }
+
+  // 儲存至 localStorage
+  let stored = {};
+  try { stored = JSON.parse(localStorage.getItem(LS_HOLIDAY_KEY) || '{}'); } catch(e) {}
+  if (!stored.tw) stored.tw = { dates: [], names: {} };
+  newTW.dates.forEach(d => { if (!stored.tw.dates.includes(d)) stored.tw.dates.push(d); });
+  Object.assign(stored.tw.names, newTW.names);
+  stored.updatedAt = new Date().toISOString();
+  localStorage.setItem(LS_HOLIDAY_KEY, JSON.stringify(stored));
+
+  // 合併入 HOLIDAYS Set
+  newTW.dates.forEach(d => HOLIDAYS.tw.add(d));
+  Object.assign(HOLIDAY_NAMES.tw, newTW.names);
+  updateHolidayLastUpdate(stored.updatedAt);
+
+  log.innerHTML = `<span style="color:var(--success);">&#x2705; 已儲存 ${ok} 筆台灣假日${skip ? `，跳過 ${skip} 行無效資料` : ''}。重新產生甘特圖即可生效。</span>`;
+  showToast(`台灣假日已儲存（${ok} 筆）`, 'success');
+  updateHMStorageStatus();
+}
+
+// 載入台灣已儲存資料到編輯區
+function loadTWFromStorage() {
+  try {
+    const raw = localStorage.getItem(LS_HOLIDAY_KEY);
+    if (!raw) { document.getElementById('hm-tw-log').textContent = '尚無儲存資料'; return; }
+    const stored = JSON.parse(raw);
+    if (!stored.tw || !stored.tw.dates || !stored.tw.dates.length) {
+      document.getElementById('hm-tw-log').textContent = '尚無台灣假日資料';
+      return;
+    }
+    const lines = stored.tw.dates.sort().map(d => d + ' ' + (stored.tw.names[d] || ''));
+    document.getElementById('hm-tw-input').value = lines.join('\n');
+    document.getElementById('hm-tw-log').innerHTML = `<span style="color:var(--primary);">&#x2139;&#xFE0F; 已載入 ${lines.length} 筆儲存資料</span>`;
+  } catch(e) { document.getElementById('hm-tw-log').textContent = '讀取儲存資料失敗'; }
+}
+
+/* ── Auto Render ──────────────────────────────────────── */
 function updateAutoBtn() {
   const btn = document.getElementById('auto-btn');
   btn.textContent = autoRender ? i18n.btn_auto_on : i18n.btn_auto_off;
@@ -1348,7 +1932,7 @@ function _doExportPNG() {
 const LANG = {
   zh: {
     title:                '甘特圖工具',
-    subtitle:             'Gantt Chart Tool 甘特圖工具 · HTML 版 · v1.13 · 2026-04-20',
+    subtitle:             'Gantt Chart Tool 甘特圖工具 · HTML 版 · v1.23 · 2026-04-20',
     btn_import:           '⬆ 匯入',
     btn_export_csv:       '⬇ 匯出 CSV',
     btn_export_png:       '🖼 匯出 PNG',
@@ -1385,6 +1969,10 @@ const LANG = {
     lbl_show_progress:    '顯示進度條',
     lbl_show_label:       '顯示站點名稱',
     lbl_show_weekend:     '顯示週末',
+    lbl_holidays:          '假日行事曆',
+    lbl_holiday_us:        '美國假日',
+    lbl_holiday_tw:        '台灣假日',
+    lbl_holiday_cn:        '中國假日',
     btn_generate:         '▶ 產生甘特圖',
     btn_auto_on:          '⚡ 自動更新：開',
     btn_auto_off:         '⚡ 自動更新：關',
@@ -1425,7 +2013,7 @@ const LANG = {
   },
   en: {
     title:                'Gantt Chart Tool',
-    subtitle:             'Gantt Chart Tool 甘特圖工具 · HTML Edition · v1.13 · 2026-04-20',
+    subtitle:             'Gantt Chart Tool 甘特圖工具 · HTML Edition · v1.23 · 2026-04-20',
     btn_import:           '⬆ Import',
     btn_export_csv:       '⬇ Export CSV',
     btn_export_png:       '🖼 Export PNG',
@@ -1462,6 +2050,10 @@ const LANG = {
     lbl_show_progress:    'Show Progress',
     lbl_show_label:       'Show Labels',
     lbl_show_weekend:     'Show Weekends',
+    lbl_holidays:          'Holiday Calendar',
+    lbl_holiday_us:        'US Holiday',
+    lbl_holiday_tw:        'TW Holiday',
+    lbl_holiday_cn:        'CN Holiday',
     btn_generate:         '▶ Generate Gantt',
     btn_auto_on:          '⚡ Auto Update: ON',
     btn_auto_off:         '⚡ Auto Update: OFF',
@@ -1932,6 +2524,9 @@ function saveToStorage() {
       showProgress: document.getElementById('show-progress').checked,
       showLabel:   document.getElementById('show-label').checked,
       showWeekend: document.getElementById('show-weekend').checked,
+      holidayUS: document.getElementById('holiday-us') ? document.getElementById('holiday-us').checked : false,
+      holidayTW: document.getElementById('holiday-tw') ? document.getElementById('holiday-tw').checked : false,
+      holidayCN: document.getElementById('holiday-cn') ? document.getElementById('holiday-cn').checked : false,
       autoRender,
       savedAt: new Date().toISOString()
     };
@@ -1957,6 +2552,9 @@ function loadFromStorage() {
     document.getElementById('show-progress').checked = !!state.showProgress;
     document.getElementById('show-label').checked    = state.showLabel !== undefined ? !!state.showLabel : true;
     document.getElementById('show-weekend').checked  = state.showWeekend !== undefined ? !!state.showWeekend : true;
+    if (document.getElementById('holiday-us')) document.getElementById('holiday-us').checked = !!state.holidayUS;
+    if (document.getElementById('holiday-tw')) document.getElementById('holiday-tw').checked = !!state.holidayTW;
+    if (document.getElementById('holiday-cn')) document.getElementById('holiday-cn').checked = !!state.holidayCN;
     autoRender = !!state.autoRender;
     updateAutoBtn();
 
@@ -1989,13 +2587,14 @@ renderGantt = function(...args) {
   if (el) el.addEventListener('change', saveToStorage);
 });
 
-/* ── Init ────────────────────────────────────────────────── */
+/* ── Init ──────────────────────────────────────────────── */
 i18n = LANG.zh;
+mergeStoredHolidays();         // merge any previously fetched holiday data from localStorage
 const restored = loadFromStorage();
 if (!restored) loadSample();  // first-time: load sample data
 else renderGantt();            // restored: re-render gantt with saved data</script>
 <footer style="text-align:center;padding:18px 0 24px;font-size:12px;color:#aaa;letter-spacing:.5px;">
-  Gantt Chart Tool 甘特圖工具 &nbsp;|&nbsp; <strong>v1.13</strong> &nbsp;|&nbsp; 2026-04-20 &nbsp;|&nbsp; HTML Edition
+  Gantt Chart Tool 甘特圖工具 &nbsp;|&nbsp; <strong>v1.22</strong> &nbsp;|&nbsp; 2026-04-20 &nbsp;|&nbsp; HTML Edition
 </footer>
 </body>
 </html>
