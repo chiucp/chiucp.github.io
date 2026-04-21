@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Allegro Netlist Viewer V2.11</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#1e1e1e;color:#d4d4d4;font-size:13px}
+
+/* Header */
+#header{background:#252526;border-bottom:1px solid #3c3c3c;padding:8px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#header h1{font-size:14px;font-weight:bold;color:#9cdcfe;margin-right:4px}
+#ver-tag{font-size:11px;color:#6a9955;background:#1e2a1e;border:1px solid #3a5a3a;border-radius:3px;padding:1px 6px}
+#file-info{font-size:11px;color:#808080;margin-left:4px}
+#header-right{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* Buttons */
+.btn{padding:5px 12px;border:1px solid #555;border-radius:3px;background:#3c3c3c;color:#d4d4d4;font-size:12px;cursor:pointer}
+.btn:hover{background:#4a4a4a}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-import{background:#0e639c;border-color:#0e639c;color:#fff}
+.btn-import:hover{background:#1177bb}
+.btn-single{background:#3c3c3c;border-color:#555}
+.btn-single.active{background:#5a4a00;border-color:#d4a017;color:#ffd700}
+
+/* Toolbar */
+#toolbar{background:#252526;border-bottom:1px solid #3c3c3c;padding:6px 14px;display:none;align-items:center;gap:8px;flex-wrap:wrap}
+.lbl{font-size:11px;color:#808080;white-space:nowrap}
+input[type=text]{background:#1e1e1e;border:1px solid #3c3c3c;color:#d4d4d4;padding:4px 8px;border-radius:3px;font-size:12px;outline:none}
+input[type=text]:focus{border-color:#0e639c}
+#stats{font-size:11px;color:#808080;margin-left:auto}
+#stats b{color:#9cdcfe}
+
+/* Empty state */
+#empty{padding:60px 20px;text-align:center;color:#555}
+#empty p{margin-top:8px;font-size:12px}
+
+/* Grid */
+#grid{padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+
+/* Card */
+.card{background:#252526;border:1px solid #3c3c3c;border-radius:4px;overflow:hidden}
+.card.has-single{border-color:#5a4a00}
+.card.hidden{display:none}
+.card-hdr{display:flex;align-items:center;padding:6px 10px;cursor:pointer;user-select:none;gap:6px}
+.card-hdr:hover{background:#2d2d2d}
+.refdes{font-weight:bold;color:#9cdcfe;font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-size:10px;padding:1px 6px;border-radius:10px;white-space:nowrap}
+.badge-pin{background:#2d2d2d;color:#808080;border:1px solid #3c3c3c}
+.badge-single{background:#3a2a00;color:#d4a017;border:1px solid #5a4a00}
+.caret{color:#808080;font-size:10px;margin-left:2px;transition:transform .15s}
+.card.collapsed .caret{transform:rotate(-90deg)}
+
+.card-body{overflow:hidden}
+.card.collapsed .card-body{display:none}
+
+/* Table */
+table{width:100%;border-collapse:collapse}
+th{background:#1e1e1e;color:#808080;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:4px 10px;text-align:left;border-bottom:1px solid #3c3c3c;font-weight:normal}
+td{padding:4px 10px;border-bottom:1px solid #2a2a2a;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#2a2a2a}
+.pin-num{font-family:'Courier New',monospace;color:#4ec9b0;font-weight:bold}
+.net-name{color:#d4d4d4}
+.net-single{color:#d4a017}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#d4a017;margin-right:5px;flex-shrink:0}
+.net-cell{display:flex;align-items:center}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>Allegro Netlist Viewer</h1>
+  <span id="ver-tag">V2.11 &nbsp;2026-04-21</span>
+  <span id="file-info"></span>
+  <div id="header-right">
+    <label class="btn btn-import" for="file-input">&#8593; 匯入 Netlist</label>
+    <input type="file" id="file-input" accept=".htm,.html" style="display:none"/>
+    <button class="btn btn-single" id="btn-single" disabled>只顯示單一 Net 的 Pin</button>
+    <button class="btn" id="btn-expand" disabled>展開全部</button>
+    <button class="btn" id="btn-collapse" disabled>收合全部</button>
+  </div>
+</div>
+
+<div id="toolbar">
+  <span class="lbl">搜尋：</span>
+  <input type="text" id="search" placeholder="RefDes / Pin / Net…" style="width:180px"/>
+  <span class="lbl" style="margin-left:8px">隱藏含關鍵字的零件：</span>
+  <input type="text" id="hide-kw" placeholder="例如 SLOT" style="width:140px"/>
+  <button class="btn" id="btn-clear-hide" title="清除隱藏關鍵字" style="padding:4px 8px">✕</button>
+  <span id="stats"></span>
+</div>
+
+<div id="howto" style="background:#252526;border-bottom:1px solid #3c3c3c;padding:12px 18px;font-size:12px;color:#b0b0b0;line-height:1.8">
+  <b style="color:#9cdcfe;font-size:13px">&#128196; 如何產生輸入檔案（Netlist Report）</b>
+  <ol style="margin-top:8px;padding-left:20px;">
+    <li>在 Allegro PCB Editor 開啟設計檔案（.brd）</li>
+    <li>點選上方選單 <b style="color:#dcdcaa">Tools</b></li>
+    <li>選擇 <b style="color:#dcdcaa">Quick Reports</b>（子選單會向右展開）</li>
+    <li>在子選單中點選 <b style="color:#dcdcaa">Netlist Report</b></li>
+    <li>Allegro 會自動產生並開啟 <b style="color:#ce9178">.htm</b> 格式的報表檔案</li>
+    <li>儲存該 .htm 檔案後，點擊上方「<b style="color:#9cdcfe">匯入 Netlist</b>」按鈕選取即可</li>
+  </ol>
+</div>
+<div id="empty">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/>
+    <line x1="16" y1="17" x2="8" y2="17"/>
+  </svg>
+  <p>請點擊「匯入 Netlist」選擇 Allegro 輸出的 .htm 檔案</p>
+</div>
+
+<div id="grid"></div>
+
+<script>
+// ── State ──────────────────────────────────────
+var components = [];   // [{refdes, pins:[{pin,net,isSingle}]}]
+var showSingle = false;
+var searchQ    = '';
+var hideKw     = '';
+
+// ── File import ────────────────────────────────
+document.getElementById('file-input').addEventListener('change', function(e){
+  var f = e.target.files[0];
+  if(!f) return;
+  var r = new FileReader();
+  r.onload = function(ev){ parseNetlist(ev.target.result); };
+  r.readAsText(f,'UTF-8');
+  this.value='';
+});
+
+// ── Parser ─────────────────────────────────────
+function parseNetlist(html){
+  var parser = new DOMParser();
+  var doc    = parser.parseFromString(html,'text/html');
+
+  // Design info
+  var dm = html.match(/Design Name<\/u>&nbsp;([^\n<]+)/i) ||
+           html.match(/Design Name[^>]*>\s*([^\n<]+)/i);
+  var dt = html.match(/Date<\/u>&nbsp;([^\n<]+)/i) ||
+           html.match(/Date[^>]*>\s*([^\n<]+)/i);
+  var infoTxt = '';
+  if(dm){ var p=dm[1].trim().replace(/\\/g,'/').split('/'); infoTxt+= p[p.length-1]; }
+  if(dt){ infoTxt+= (infoTxt?' | ':'')+dt[1].trim(); }
+  document.getElementById('file-info').textContent = infoTxt;
+
+  // Parse rows
+  var rows = doc.querySelectorAll('table tr');
+  var compMap    = {};   // refdes -> {pin -> [net]}
+  var netPinCnt  = {};   // net -> total pin count
+
+  rows.forEach(function(row){
+    var cells = row.querySelectorAll('td');
+    if(cells.length < 2) return;
+    var net  = cells[0].textContent.trim();
+    var raw  = cells[1].textContent.trim();
+    if(!net || !raw || net==='Net Name') return;
+
+    var tokens = raw.split(/\s+/).filter(Boolean);
+    netPinCnt[net] = (netPinCnt[net]||0) + tokens.length;
+
+    tokens.forEach(function(tok){
+      var d = tok.indexOf('.');
+      if(d===-1) return;
+      var ref = tok.substring(0,d);
+      var pin = tok.substring(d+1);
+      if(!compMap[ref]) compMap[ref]={};
+      if(!compMap[ref][pin]) compMap[ref][pin]=[];
+      compMap[ref][pin].push(net);
+    });
+  });
+
+  // Build components array
+  components = [];
+  Object.keys(compMap).forEach(function(ref){
+    var pins=[];
+    Object.keys(compMap[ref]).forEach(function(pin){
+      compMap[ref][pin].forEach(function(net){
+        pins.push({pin:pin, net:net, isSingle:(netPinCnt[net]||0)===1});
+      });
+    });
+    pins.sort(function(a,b){return natCmp(a.pin,b.pin);});
+    components.push({refdes:ref, pins:pins});
+  });
+  components.sort(function(a,b){return natCmp(a.refdes,b.refdes);});
+
+  // Enable controls
+  document.getElementById('btn-single').disabled=false;
+  document.getElementById('btn-expand').disabled=false;
+  document.getElementById('btn-collapse').disabled=false;
+  document.getElementById('toolbar').style.display='flex';
+  document.getElementById('empty').style.display='none';
+
+  showSingle=false;
+  searchQ='';
+  hideKw='';
+  document.getElementById('search').value='';
+  document.getElementById('hide-kw').value='';
+  document.getElementById('btn-single').classList.remove('active');
+  document.getElementById('btn-single').textContent='只顯示單一 Net 的 Pin';
+
+  render();
+}
+
+// ── Natural sort ───────────────────────────────
+function natCmp(a,b){
+  var re=/(\d+)|(\D+)/g, pa=String(a).match(re)||[], pb=String(b).match(re)||[];
+  for(var i=0;i<Math.max(pa.length,pb.length);i++){
+    if(i>=pa.length) return -1;
+    if(i>=pb.length) return 1;
+    var na=parseInt(pa[i]), nb=parseInt(pb[i]);
+    if(!isNaN(na)&&!isNaN(nb)){if(na!==nb) return na-nb;}
+    else{if(pa[i]<pb[i]) return -1; if(pa[i]>pb[i]) return 1;}
+  }
+  return 0;
+}
+
+// ── Render ─────────────────────────────────────
+function render(){
+  var grid = document.getElementById('grid');
+  grid.innerHTML='';
+
+  var q   = searchQ.toLowerCase();
+  var hkw = hideKw.toLowerCase();
+  var visCards=0, totalPins=0, singleTotal=0;
+
+  components.forEach(function(comp){
+    // Hide by keyword (applied to refdes)
+    if(hkw && comp.refdes.toLowerCase().indexOf(hkw)!==-1) return;
+
+    // Filter pins
+    var vis = comp.pins.filter(function(p){
+      if(showSingle && !p.isSingle) return false;
+      if(q){
+        return comp.refdes.toLowerCase().indexOf(q)!==-1 ||
+               p.pin.toLowerCase().indexOf(q)!==-1 ||
+               p.net.toLowerCase().indexOf(q)!==-1;
+      }
+      return true;
+    });
+    if(vis.length===0) return;
+
+    visCards++;
+    totalPins += vis.length;
+    var sc = vis.filter(function(p){return p.isSingle;}).length;
+    singleTotal += sc;
+
+    // Card
+    var card = document.createElement('div');
+    card.className='card'+(sc>0?' has-single':'');
+
+    // Header
+    var hdr = document.createElement('div');
+    hdr.className='card-hdr';
+    hdr.innerHTML=
+      '<span class="refdes">'+esc(comp.refdes)+'</span>'+
+      (sc>0?'<span class="badge badge-single">&#9888; '+sc+' 單一</span>':'')+
+      '<span class="badge badge-pin">'+vis.length+' pins</span>'+
+      '<span class="caret">&#9660;</span>';
+    hdr.addEventListener('click',function(){toggleCard(card);});
+
+    // Body
+    var body = document.createElement('div');
+    body.className='card-body';
+
+    var tbl = '<table><thead><tr><th>Pin</th><th>Net Name</th></tr></thead><tbody>';
+    vis.forEach(function(p){
+      tbl+='<tr><td><span class="pin-num">'+esc(p.pin)+'</span></td><td>'+
+           '<div class="net-cell">'+
+           (p.isSingle?'<span class="dot"></span>':'')+
+           '<span class="net-name'+(p.isSingle?' net-single':'')+'">'+esc(p.net)+'</span>'+
+           '</div></td></tr>';
+    });
+    tbl+='</tbody></table>';
+    body.innerHTML=tbl;
+
+    card.appendChild(hdr);
+    card.appendChild(body);
+    grid.appendChild(card);
+  });
+
+  // Stats
+  var tot = components.reduce(function(s,c){return s+c.pins.length;},0);
+  var sAll= components.reduce(function(s,c){return s+c.pins.filter(function(p){return p.isSingle;}).length;},0);
+  document.getElementById('stats').innerHTML=
+    '顯示 <b>'+visCards+'</b> 個零件 &nbsp;|&nbsp; 顯示 <b>'+totalPins+'</b> / '+tot+' 個 Pin &nbsp;|&nbsp; 單一 Net：<b>'+sAll+'</b>';
+}
+
+function toggleCard(card){
+  card.classList.toggle('collapsed');
+}
+
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Controls ───────────────────────────────────
+document.getElementById('btn-single').addEventListener('click',function(){
+  showSingle=!showSingle;
+  this.classList.toggle('active',showSingle);
+  this.textContent=showSingle?'顯示全部 Pin':'只顯示單一 Net 的 Pin';
+  render();
+});
+
+document.getElementById('search').addEventListener('input',function(){
+  searchQ=this.value.trim();
+  render();
+});
+
+document.getElementById('hide-kw').addEventListener('input',function(){
+  hideKw=this.value.trim();
+  render();
+});
+
+document.getElementById('btn-clear-hide').addEventListener('click',function(){
+  hideKw='';
+  document.getElementById('hide-kw').value='';
+  render();
+});
+
+document.getElementById('btn-expand').addEventListener('click',function(){
+  document.querySelectorAll('.card').forEach(function(c){c.classList.remove('collapsed');});
+});
+
+document.getElementById('btn-collapse').addEventListener('click',function(){
+  document.querySelectorAll('.card').forEach(function(c){c.classList.add('collapsed');});
+});
+</script>
+</body>
+</html>
