@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Allegro Netlist Viewer V2.11</title>
+<title>Allegro Netlist Viewer V2.22</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;background:#1e1e1e;color:#d4d4d4;font-size:13px}
@@ -21,7 +21,6 @@ body{font-family:Arial,sans-serif;background:#1e1e1e;color:#d4d4d4;font-size:13p
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .btn-import{background:#0e639c;border-color:#0e639c;color:#fff}
 .btn-import:hover{background:#1177bb}
-.btn-single{background:#3c3c3c;border-color:#555}
 .btn-single.active{background:#5a4a00;border-color:#d4a017;color:#ffd700}
 
 /* Toolbar */
@@ -31,6 +30,19 @@ input[type=text]{background:#1e1e1e;border:1px solid #3c3c3c;color:#d4d4d4;paddi
 input[type=text]:focus{border-color:#0e639c}
 #stats{font-size:11px;color:#808080;margin-left:auto}
 #stats b{color:#9cdcfe}
+
+/* How-to */
+#howto{background:#252526;border-bottom:1px solid #3c3c3c;padding:12px 18px;font-size:12px;color:#b0b0b0;line-height:1.8}
+
+/* Tabs */
+#tab-bar{background:#1e1e1e;border-bottom:1px solid #3c3c3c;display:none;align-items:flex-end;padding:0 14px;gap:2px}
+.tab{padding:7px 18px;font-size:12px;cursor:pointer;border:1px solid transparent;border-bottom:none;border-radius:3px 3px 0 0;color:#808080;background:transparent;margin-bottom:-1px}
+.tab:hover{color:#d4d4d4;background:#2d2d2d}
+.tab.active{color:#9cdcfe;background:#252526;border-color:#3c3c3c;border-bottom-color:#252526}
+
+/* Tab panels */
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 
 /* Empty state */
 #empty{padding:60px 20px;text-align:center;color:#555}
@@ -42,7 +54,6 @@ input[type=text]:focus{border-color:#0e639c}
 /* Card */
 .card{background:#252526;border:1px solid #3c3c3c;border-radius:4px;overflow:hidden}
 .card.has-single{border-color:#5a4a00}
-.card.hidden{display:none}
 .card-hdr{display:flex;align-items:center;padding:6px 10px;cursor:pointer;user-select:none;gap:6px}
 .card-hdr:hover{background:#2d2d2d}
 .refdes{font-weight:bold;color:#9cdcfe;font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -51,11 +62,8 @@ input[type=text]:focus{border-color:#0e639c}
 .badge-single{background:#3a2a00;color:#d4a017;border:1px solid #5a4a00}
 .caret{color:#808080;font-size:10px;margin-left:2px;transition:transform .15s}
 .card.collapsed .caret{transform:rotate(-90deg)}
-
 .card-body{overflow:hidden}
 .card.collapsed .card-body{display:none}
-
-/* Table */
 table{width:100%;border-collapse:collapse}
 th{background:#1e1e1e;color:#808080;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:4px 10px;text-align:left;border-bottom:1px solid #3c3c3c;font-weight:normal}
 td{padding:4px 10px;border-bottom:1px solid #2a2a2a;vertical-align:middle}
@@ -66,23 +74,59 @@ tr:hover td{background:#2a2a2a}
 .net-single{color:#d4a017}
 .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#d4a017;margin-right:5px;flex-shrink:0}
 .net-cell{display:flex;align-items:center}
+
+/* ── Super-expand panel ── */
+#panel-expand{padding:14px}
+#expand-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+#expand-bar input[type=text]{width:220px}
+.btn-expand-go{background:#0e639c;border-color:#0e639c;color:#fff}
+.btn-expand-go:hover{background:#1177bb}
+.excl-group{display:flex;align-items:center;gap:6px;font-size:11px;color:#808080;white-space:nowrap}
+.excl-group input[type=text]{width:150px}
+
+/* Result area */
+#expand-result{font-size:12px}
+#expand-empty{color:#555;padding:30px 0;text-align:center}
+
+/* Hop sections */
+.hop-section{margin-bottom:16px}
+.hop-title{font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.08em;color:#808080;padding:4px 0 6px 0;border-bottom:1px solid #2a2a2a;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.hop-title .hop-badge{background:#0e4a6e;color:#9cdcfe;border:1px solid #1177bb;border-radius:10px;padding:1px 8px;font-size:10px;font-weight:normal;text-transform:none;letter-spacing:0}
+.hop-title .net-count{color:#555;font-weight:normal;font-size:10px}
+
+/* Net rows in expand result */
+.net-row{display:flex;align-items:flex-start;padding:5px 8px;border-radius:3px;gap:10px;border-bottom:1px solid #2a2a2a}
+.net-row:last-child{border-bottom:none}
+.net-row:hover{background:#2a2a2a}
+.net-row-name{min-width:180px;font-family:'Courier New',monospace;font-size:12px;font-weight:bold;color:#ce9178;flex-shrink:0}
+.net-row-name.is-origin{color:#f6ad55}
+.net-row-pins{color:#808080;font-size:11px;line-height:1.7;flex:1}
+.net-row-pins .pin-token{display:inline-block;background:#1e1e1e;border:1px solid #3c3c3c;border-radius:3px;padding:0 5px;margin:1px 2px;font-family:'Courier New',monospace;color:#4ec9b0;font-size:11px}
+.net-row-pins .pin-token.is-bridge{color:#9cdcfe;border-color:#0e639c;background:#0a2a3e}
+.skipped-note{font-size:11px;color:#555;font-style:italic;padding:4px 8px}
+
+/* Summary bar */
+#expand-summary{background:#1e2a1e;border:1px solid #3a5a3a;border-radius:3px;padding:6px 12px;font-size:11px;color:#6a9955;margin-bottom:10px;display:none}
+#expand-summary b{color:#9cdcfe}
 </style>
 </head>
 <body>
 
+<!-- Header -->
 <div id="header">
   <h1>Allegro Netlist Viewer</h1>
-  <span id="ver-tag">V2.11 &nbsp;2026-04-21</span>
+  <span id="ver-tag">V2.22 &nbsp;2026-04-22</span>
   <span id="file-info"></span>
   <div id="header-right">
     <label class="btn btn-import" for="file-input">&#8593; 匯入 Netlist</label>
     <input type="file" id="file-input" accept=".htm,.html" style="display:none"/>
     <button class="btn btn-single" id="btn-single" disabled>只顯示單一 Net 的 Pin</button>
-    <button class="btn" id="btn-expand" disabled>展開全部</button>
-    <button class="btn" id="btn-collapse" disabled>收合全部</button>
+    <button class="btn" id="btn-expand-all" disabled>展開全部</button>
+    <button class="btn" id="btn-collapse-all" disabled>收合全部</button>
   </div>
 </div>
 
+<!-- Toolbar (shown after import) -->
 <div id="toolbar">
   <span class="lbl">搜尋：</span>
   <input type="text" id="search" placeholder="RefDes / Pin / Net…" style="width:180px"/>
@@ -92,6 +136,7 @@ tr:hover td{background:#2a2a2a}
   <span id="stats"></span>
 </div>
 
+<!-- How-to -->
 <div id="howto" style="background:#252526;border-bottom:1px solid #3c3c3c;padding:12px 18px;font-size:12px;color:#b0b0b0;line-height:1.8">
   <b style="color:#9cdcfe;font-size:13px">&#128196; 如何產生輸入檔案（Netlist Report）</b>
   <ol style="margin-top:8px;padding-left:20px;">
@@ -99,10 +144,12 @@ tr:hover td{background:#2a2a2a}
     <li>點選上方選單 <b style="color:#dcdcaa">Tools</b></li>
     <li>選擇 <b style="color:#dcdcaa">Quick Reports</b>（子選單會向右展開）</li>
     <li>在子選單中點選 <b style="color:#dcdcaa">Netlist Report</b></li>
-    <li>Allegro 會自動產生報表並另存為  <b style="color:#ce9178">.htm</b> 格式的檔案</li>
+    <li>Allegro 會自動產生報表並另存為 <b style="color:#ce9178">.htm</b> 格式的檔案</li>
     <li>儲存該 .htm 檔案後，點擊上方「<b style="color:#9cdcfe">匯入 Netlist</b>」按鈕選取即可</li>
   </ol>
 </div>
+
+<!-- Empty state (before import) -->
 <div id="empty">
   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -113,16 +160,53 @@ tr:hover td{background:#2a2a2a}
   <p>請點擊「匯入 Netlist」選擇 Allegro 輸出的 .htm 檔案</p>
 </div>
 
-<div id="grid"></div>
+<!-- Tab bar (shown after import) -->
+<div id="tab-bar">
+  <div class="tab active" data-tab="main">零件瀏覽</div>
+  <div class="tab" data-tab="expand">&#128269; 超展開搜尋</div>
+</div>
+
+<!-- Tab: main -->
+<div id="panel-main" class="tab-panel active">
+  <div id="grid"></div>
+</div>
+
+<!-- Tab: super-expand -->
+<div id="panel-expand" class="tab-panel">
+  <div id="expand-bar">
+    <span class="lbl">Net 名稱：</span>
+    <input type="text" id="expand-input" placeholder="輸入完整或部分 Net 名稱…"/>
+    <button class="btn btn-expand-go" id="btn-expand-go">展開關聯</button>
+    <button class="btn" id="btn-expand-clear" style="padding:5px 8px">清除</button>
+    <span class="excl-group">
+      <span>排除 Net：</span>
+      <input type="text" id="excl-net" placeholder="多個用逗號，如 GND,PWR" style="width:180px"/>
+    </span>
+    <span class="excl-group">
+      <span>排除零件：</span>
+      <input type="text" id="excl-ref" placeholder="多個用逗號，如 SLOT,TP" style="width:180px"/>
+    </span>
+  </div>
+  <div id="expand-summary"></div>
+  <div id="expand-result">
+    <div id="expand-empty">輸入 Net 名稱後按「展開關聯」，即可遞迴追蹤所有相關零件與 Net</div>
+  </div>
+</div>
 
 <script>
-// ── State ──────────────────────────────────────
-var components = [];   // [{refdes, pins:[{pin,net,isSingle}]}]
-var showSingle = false;
-var searchQ    = '';
-var hideKw     = '';
+// ══════════════════════════════════════════════
+//  Global state
+// ══════════════════════════════════════════════
+var components  = [];   // [{refdes, pins:[{pin,net,isSingle}]}]
+var netMap      = {};   // net -> [{refdes, pin}]
+var refMap      = {};   // refdes -> [{pin, net}]
+var showSingle  = false;
+var searchQ     = '';
+var hideKw      = '';
 
-// ── File import ────────────────────────────────
+// ══════════════════════════════════════════════
+//  File import
+// ══════════════════════════════════════════════
 document.getElementById('file-input').addEventListener('change', function(e){
   var f = e.target.files[0];
   if(!f) return;
@@ -132,7 +216,9 @@ document.getElementById('file-input').addEventListener('change', function(e){
   this.value='';
 });
 
-// ── Parser ─────────────────────────────────────
+// ══════════════════════════════════════════════
+//  Parser
+// ══════════════════════════════════════════════
 function parseNetlist(html){
   var parser = new DOMParser();
   var doc    = parser.parseFromString(html,'text/html');
@@ -143,190 +229,358 @@ function parseNetlist(html){
   var dt = html.match(/Date<\/u>&nbsp;([^\n<]+)/i) ||
            html.match(/Date[^>]*>\s*([^\n<]+)/i);
   var infoTxt = '';
-  if(dm){ var p=dm[1].trim().replace(/\\/g,'/').split('/'); infoTxt+= p[p.length-1]; }
-  if(dt){ infoTxt+= (infoTxt?' | ':'')+dt[1].trim(); }
-  document.getElementById('file-info').textContent = infoTxt;
+  if(dm){ var p=dm[1].trim().replace(/\\/g,'/').split('/'); infoTxt+=p[p.length-1]; }
+  if(dt){ infoTxt+=(infoTxt?' | ':'')+dt[1].trim(); }
+  document.getElementById('file-info').textContent=infoTxt;
 
   // Parse rows
-  var rows = doc.querySelectorAll('table tr');
-  var compMap    = {};   // refdes -> {pin -> [net]}
-  var netPinCnt  = {};   // net -> total pin count
+  var rows      = doc.querySelectorAll('table tr');
+  var compMap   = {};
+  var netPinCnt = {};
+  netMap = {};
+  refMap = {};
 
   rows.forEach(function(row){
     var cells = row.querySelectorAll('td');
-    if(cells.length < 2) return;
-    var net  = cells[0].textContent.trim();
-    var raw  = cells[1].textContent.trim();
-    if(!net || !raw || net==='Net Name') return;
+    if(cells.length<2) return;
+    var net = cells[0].textContent.trim();
+    var raw = cells[1].textContent.trim();
+    if(!net||!raw||net==='Net Name') return;
 
     var tokens = raw.split(/\s+/).filter(Boolean);
-    netPinCnt[net] = (netPinCnt[net]||0) + tokens.length;
+    netPinCnt[net]=(netPinCnt[net]||0)+tokens.length;
+    if(!netMap[net]) netMap[net]=[];
 
     tokens.forEach(function(tok){
-      var d = tok.indexOf('.');
+      var d=tok.indexOf('.');
       if(d===-1) return;
-      var ref = tok.substring(0,d);
-      var pin = tok.substring(d+1);
+      var ref=tok.substring(0,d);
+      var pin=tok.substring(d+1);
       if(!compMap[ref]) compMap[ref]={};
       if(!compMap[ref][pin]) compMap[ref][pin]=[];
       compMap[ref][pin].push(net);
+      netMap[net].push({refdes:ref,pin:pin});
+      if(!refMap[ref]) refMap[ref]=[];
+      refMap[ref].push({pin:pin,net:net});
     });
   });
 
   // Build components array
-  components = [];
+  components=[];
   Object.keys(compMap).forEach(function(ref){
     var pins=[];
     Object.keys(compMap[ref]).forEach(function(pin){
       compMap[ref][pin].forEach(function(net){
-        pins.push({pin:pin, net:net, isSingle:(netPinCnt[net]||0)===1});
+        pins.push({pin:pin,net:net,isSingle:(netPinCnt[net]||0)===1});
       });
     });
     pins.sort(function(a,b){return natCmp(a.pin,b.pin);});
-    components.push({refdes:ref, pins:pins});
+    components.push({refdes:ref,pins:pins});
   });
   components.sort(function(a,b){return natCmp(a.refdes,b.refdes);});
 
-  // Enable controls
+  // Show UI
   document.getElementById('btn-single').disabled=false;
-  document.getElementById('btn-expand').disabled=false;
-  document.getElementById('btn-collapse').disabled=false;
+  document.getElementById('btn-expand-all').disabled=false;
+  document.getElementById('btn-collapse-all').disabled=false;
   document.getElementById('toolbar').style.display='flex';
   document.getElementById('empty').style.display='none';
+  document.getElementById('tab-bar').style.display='flex';
 
-  showSingle=false;
-  searchQ='';
-  hideKw='';
+  showSingle=false; searchQ=''; hideKw='';
   document.getElementById('search').value='';
   document.getElementById('hide-kw').value='';
   document.getElementById('btn-single').classList.remove('active');
   document.getElementById('btn-single').textContent='只顯示單一 Net 的 Pin';
 
+  // Reset expand panel
+  document.getElementById('expand-input').value='';
+  document.getElementById('expand-result').innerHTML='<div id="expand-empty">輸入 Net 名稱後按「展開關聯」，即可遞迴追蹤所有相關零件與 Net</div>';
+  document.getElementById('expand-summary').style.display='none';
+
   render();
 }
 
-// ── Natural sort ───────────────────────────────
+// ══════════════════════════════════════════════
+//  Natural sort
+// ══════════════════════════════════════════════
 function natCmp(a,b){
-  var re=/(\d+)|(\D+)/g, pa=String(a).match(re)||[], pb=String(b).match(re)||[];
+  var re=/(\d+)|(\D+)/g,pa=String(a).match(re)||[],pb=String(b).match(re)||[];
   for(var i=0;i<Math.max(pa.length,pb.length);i++){
     if(i>=pa.length) return -1;
     if(i>=pb.length) return 1;
-    var na=parseInt(pa[i]), nb=parseInt(pb[i]);
+    var na=parseInt(pa[i]),nb=parseInt(pb[i]);
     if(!isNaN(na)&&!isNaN(nb)){if(na!==nb) return na-nb;}
-    else{if(pa[i]<pb[i]) return -1; if(pa[i]>pb[i]) return 1;}
+    else{if(pa[i]<pb[i]) return -1;if(pa[i]>pb[i]) return 1;}
   }
   return 0;
 }
 
-// ── Render ─────────────────────────────────────
+// ══════════════════════════════════════════════
+//  Render – main tab
+// ══════════════════════════════════════════════
 function render(){
-  var grid = document.getElementById('grid');
+  var grid=document.getElementById('grid');
   grid.innerHTML='';
-
-  var q   = searchQ.toLowerCase();
-  var hkw = hideKw.toLowerCase();
-  var visCards=0, totalPins=0, singleTotal=0;
+  var q=searchQ.toLowerCase(), hkw=hideKw.toLowerCase();
+  var visCards=0, totalPins=0;
 
   components.forEach(function(comp){
-    // Hide by keyword (applied to refdes)
-    if(hkw && comp.refdes.toLowerCase().indexOf(hkw)!==-1) return;
-
-    // Filter pins
-    var vis = comp.pins.filter(function(p){
-      if(showSingle && !p.isSingle) return false;
-      if(q){
-        return comp.refdes.toLowerCase().indexOf(q)!==-1 ||
-               p.pin.toLowerCase().indexOf(q)!==-1 ||
-               p.net.toLowerCase().indexOf(q)!==-1;
-      }
+    if(hkw&&comp.refdes.toLowerCase().indexOf(hkw)!==-1) return;
+    var vis=comp.pins.filter(function(p){
+      if(showSingle&&!p.isSingle) return false;
+      if(q) return comp.refdes.toLowerCase().indexOf(q)!==-1||
+                    p.pin.toLowerCase().indexOf(q)!==-1||
+                    p.net.toLowerCase().indexOf(q)!==-1;
       return true;
     });
     if(vis.length===0) return;
+    visCards++; totalPins+=vis.length;
+    var sc=vis.filter(function(p){return p.isSingle;}).length;
 
-    visCards++;
-    totalPins += vis.length;
-    var sc = vis.filter(function(p){return p.isSingle;}).length;
-    singleTotal += sc;
-
-    // Card
-    var card = document.createElement('div');
+    var card=document.createElement('div');
     card.className='card'+(sc>0?' has-single':'');
 
-    // Header
-    var hdr = document.createElement('div');
+    var hdr=document.createElement('div');
     hdr.className='card-hdr';
-    hdr.innerHTML=
-      '<span class="refdes">'+esc(comp.refdes)+'</span>'+
+    hdr.innerHTML='<span class="refdes">'+esc(comp.refdes)+'</span>'+
       (sc>0?'<span class="badge badge-single">&#9888; '+sc+' 單一</span>':'')+
       '<span class="badge badge-pin">'+vis.length+' pins</span>'+
       '<span class="caret">&#9660;</span>';
-    hdr.addEventListener('click',function(){toggleCard(card);});
+    hdr.addEventListener('click',function(){card.classList.toggle('collapsed');});
 
-    // Body
-    var body = document.createElement('div');
+    var body=document.createElement('div');
     body.className='card-body';
-
-    var tbl = '<table><thead><tr><th>Pin</th><th>Net Name</th></tr></thead><tbody>';
+    var tbl='<table><thead><tr><th>Pin</th><th>Net Name</th></tr></thead><tbody>';
     vis.forEach(function(p){
       tbl+='<tr><td><span class="pin-num">'+esc(p.pin)+'</span></td><td>'+
-           '<div class="net-cell">'+
-           (p.isSingle?'<span class="dot"></span>':'')+
+           '<div class="net-cell">'+(p.isSingle?'<span class="dot"></span>':'')+
            '<span class="net-name'+(p.isSingle?' net-single':'')+'">'+esc(p.net)+'</span>'+
            '</div></td></tr>';
     });
     tbl+='</tbody></table>';
     body.innerHTML=tbl;
-
-    card.appendChild(hdr);
-    card.appendChild(body);
+    card.appendChild(hdr); card.appendChild(body);
     grid.appendChild(card);
   });
 
-  // Stats
-  var tot = components.reduce(function(s,c){return s+c.pins.length;},0);
-  var sAll= components.reduce(function(s,c){return s+c.pins.filter(function(p){return p.isSingle;}).length;},0);
+  var tot=components.reduce(function(s,c){return s+c.pins.length;},0);
+  var sAll=components.reduce(function(s,c){return s+c.pins.filter(function(p){return p.isSingle;}).length;},0);
   document.getElementById('stats').innerHTML=
     '顯示 <b>'+visCards+'</b> 個零件 &nbsp;|&nbsp; 顯示 <b>'+totalPins+'</b> / '+tot+' 個 Pin &nbsp;|&nbsp; 單一 Net：<b>'+sAll+'</b>';
 }
 
-function toggleCard(card){
-  card.classList.toggle('collapsed');
+// ══════════════════════════════════════════════
+//  Super-expand search
+// ══════════════════════════════════════════════
+function doExpand(){
+  var kw = document.getElementById('expand-input').value.trim();
+  if(!kw){ alert('請輸入 Net 名稱關鍵字'); return; }
+  // Parse comma-separated exclusion keywords (trim each, remove empty)
+  var exclNetKws = document.getElementById('excl-net').value.split(',').map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
+  var exclRefKws = document.getElementById('excl-ref').value.split(',').map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
+  var exclNet = exclNetKws.join(', ');
+  var exclRef = exclRefKws.join(', ');
+
+  // Step 1: find seed nets (partial match)
+  var seedNets = Object.keys(netMap).filter(function(n){
+    return n.toLowerCase().indexOf(kw.toLowerCase())!==-1;
+  });
+  if(seedNets.length===0){
+    document.getElementById('expand-result').innerHTML=
+      '<div id="expand-empty">找不到包含「'+esc(kw)+'」的 Net，請確認名稱</div>';
+    document.getElementById('expand-summary').style.display='none';
+    return;
+  }
+
+  // BFS expansion
+  // visitedNets: set of net names already processed
+  // visitedRefs: set of refdes already processed
+  // hops: array of {nets:[netName], refs:[refdes]}  — one entry per BFS level
+  var visitedNets  = {};
+  var visitedRefs  = {};
+  var skippedNets  = [];   // nets excluded by excl-net keyword
+  var skippedRefs  = [];   // refs excluded by excl-ref keyword
+  var hops         = [];
+
+  // Seed hop
+  var currentNets = [];
+  seedNets.forEach(function(n){
+    if(!visitedNets[n]){ visitedNets[n]=true; currentNets.push(n); }
+  });
+
+  var MAX_HOPS = 20;
+  var hop = 0;
+
+  while(currentNets.length>0 && hop<MAX_HOPS){
+    // Collect all refdes touched by currentNets
+    var newRefs = [];
+    currentNets.forEach(function(net){
+      (netMap[net]||[]).forEach(function(entry){
+        if(!visitedRefs[entry.refdes]){
+          visitedRefs[entry.refdes]=true;
+          newRefs.push(entry.refdes);
+        }
+      });
+    });
+
+    // Collect all nets from newRefs (apply excl-ref filter on refs first)
+    var nextNets = [];
+    newRefs.forEach(function(ref){
+      (refMap[ref]||[]).forEach(function(entry){
+        if(!visitedNets[entry.net]){
+          // Exclude net if any keyword matches
+          if(exclNetKws.length>0 && exclNetKws.some(function(kw){return entry.net.toLowerCase().indexOf(kw)!==-1;})){
+            if(skippedNets.indexOf(entry.net)===-1) skippedNets.push(entry.net);
+            visitedNets[entry.net]=true;
+            return;
+          }
+          visitedNets[entry.net]=true;
+          nextNets.push(entry.net);
+        }
+      });
+    });
+
+    // Apply excl-ref filter: remove refs that match any keyword
+    if(exclRefKws.length>0){
+      newRefs = newRefs.filter(function(ref){
+        if(exclRefKws.some(function(kw){return ref.toLowerCase().indexOf(kw)!==-1;})){
+          if(skippedRefs.indexOf(ref)===-1) skippedRefs.push(ref);
+          return false;
+        }
+        return true;
+      });
+    }
+
+    hops.push({nets:currentNets.slice(), refs:newRefs.slice()});
+    currentNets = nextNets;
+    hop++;
+  }
+
+  // Render result
+  renderExpandResult(kw, hops, skippedNets, skippedRefs, exclNet, exclRef);
 }
 
+function renderExpandResult(kw, hops, skippedNets, skippedRefs, exclNet, exclRef){
+  var totalNets=0, totalRefs=0;
+  hops.forEach(function(h){ totalNets+=h.nets.length; totalRefs+=h.refs.length; });
+
+  // Summary
+  var sumEl=document.getElementById('expand-summary');
+  sumEl.style.display='block';
+  sumEl.innerHTML='搜尋關鍵字：<b>'+esc(kw)+'</b> &nbsp;|&nbsp; 共展開 <b>'+hops.length+'</b> 層 &nbsp;|&nbsp; 涉及 <b>'+totalNets+'</b> 個 Net、<b>'+totalRefs+'</b> 個零件'+
+    (skippedNets.length>0?' &nbsp;|&nbsp; 已略過 Net：<b>'+skippedNets.length+'</b> 個':'')+
+    (skippedRefs.length>0?' &nbsp;|&nbsp; 已略過零件：<b>'+skippedRefs.length+'</b> 個':'');
+
+  var html='';
+  hops.forEach(function(h, idx){
+    var isOrigin=(idx===0);
+    html+='<div class="hop-section">';
+    html+='<div class="hop-title">'+
+          '<span class="hop-badge">第 '+(idx+1)+' 層</span>'+
+          (isOrigin?'<span style="color:#f6ad55">起始 Net</span>':'<span>關聯展開</span>')+
+          '<span class="net-count">'+h.nets.length+' 個 Net &nbsp;→&nbsp; '+h.refs.length+' 個零件</span>'+
+          '</div>';
+
+    // For each net in this hop, list its pins grouped
+    h.nets.forEach(function(net){
+      var pins = netMap[net]||[];
+      // Determine which pins are "bridge" (their refdes also appears in other hops)
+      html+='<div class="net-row">';
+      html+='<div class="net-row-name'+(isOrigin?' is-origin':'')+'">'+esc(net)+'</div>';
+      html+='<div class="net-row-pins">';
+      pins.forEach(function(entry){
+        html+='<span class="pin-token">'+esc(entry.refdes+'.'+entry.pin)+'</span>';
+      });
+      html+='</div></div>';
+    });
+
+    if(h.refs.length>0){
+      html+='<div style="padding:4px 8px;font-size:11px;color:#555">&#8627; 涉及零件：';
+      h.refs.forEach(function(ref){
+        html+='<span style="display:inline-block;background:#1e1e1e;border:1px solid #3c3c3c;border-radius:3px;padding:0 6px;margin:1px 2px;color:#9cdcfe;font-family:monospace;font-size:11px">'+esc(ref)+'</span>';
+      });
+      html+='</div>';
+    }
+    html+='</div>';
+  });
+
+  if(skippedNets.length>0){
+    html+='<div class="skipped-note">已略過 Net（含關鍵字「'+esc(exclNet)+'」，共 '+skippedNets.length+' 個）：'+
+          skippedNets.map(function(n){return esc(n);}).join('、')+'</div>';
+  }
+  if(skippedRefs.length>0){
+    html+='<div class="skipped-note">已略過零件（含關鍵字「'+esc(exclRef)+'」，共 '+skippedRefs.length+' 個）：'+
+          skippedRefs.map(function(n){return esc(n);}).join('、')+'</div>';
+  }
+
+  document.getElementById('expand-result').innerHTML=html||'<div id="expand-empty">無關聯結果</div>';
+}
+
+// ══════════════════════════════════════════════
+//  Helpers
+// ══════════════════════════════════════════════
 function esc(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Controls ───────────────────────────────────
+// ══════════════════════════════════════════════
+//  Controls – main tab
+// ══════════════════════════════════════════════
 document.getElementById('btn-single').addEventListener('click',function(){
   showSingle=!showSingle;
   this.classList.toggle('active',showSingle);
   this.textContent=showSingle?'顯示全部 Pin':'只顯示單一 Net 的 Pin';
   render();
 });
-
 document.getElementById('search').addEventListener('input',function(){
-  searchQ=this.value.trim();
-  render();
+  searchQ=this.value.trim(); render();
 });
-
 document.getElementById('hide-kw').addEventListener('input',function(){
-  hideKw=this.value.trim();
-  render();
+  hideKw=this.value.trim(); render();
 });
-
 document.getElementById('btn-clear-hide').addEventListener('click',function(){
-  hideKw='';
-  document.getElementById('hide-kw').value='';
-  render();
+  hideKw=''; document.getElementById('hide-kw').value=''; render();
+});
+document.getElementById('btn-expand-all').addEventListener('click',function(){
+  document.querySelectorAll('#grid .card').forEach(function(c){c.classList.remove('collapsed');});
+});
+document.getElementById('btn-collapse-all').addEventListener('click',function(){
+  document.querySelectorAll('#grid .card').forEach(function(c){c.classList.add('collapsed');});
 });
 
-document.getElementById('btn-expand').addEventListener('click',function(){
-  document.querySelectorAll('.card').forEach(function(c){c.classList.remove('collapsed');});
+// ══════════════════════════════════════════════
+//  Controls – expand tab
+// ══════════════════════════════════════════════
+document.getElementById('btn-expand-go').addEventListener('click', doExpand);
+document.getElementById('expand-input').addEventListener('keydown',function(e){
+  if(e.key==='Enter') doExpand();
+});
+document.getElementById('btn-expand-clear').addEventListener('click',function(){
+  document.getElementById('expand-input').value='';
+  document.getElementById('excl-net').value='';
+  document.getElementById('excl-ref').value='';
+  document.getElementById('expand-result').innerHTML=
+    '<div id="expand-empty">輸入 Net 名稱後按「展開關聯」，即可遞迴追蹤所有相關零件與 Net</div>';
+  document.getElementById('expand-summary').style.display='none';
 });
 
-document.getElementById('btn-collapse').addEventListener('click',function(){
-  document.querySelectorAll('.card').forEach(function(c){c.classList.add('collapsed');});
+// ══════════════════════════════════════════════
+//  Tab switching
+// ══════════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(function(tab){
+  tab.addEventListener('click',function(){
+    var target=this.dataset.tab;
+    document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+    document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
+    this.classList.add('active');
+    document.getElementById('panel-'+target).classList.add('active');
+    // expand/collapse buttons only relevant on main tab
+    var onMain=(target==='main');
+    document.getElementById('btn-expand-all').style.display=onMain?'':'none';
+    document.getElementById('btn-collapse-all').style.display=onMain?'':'none';
+    document.getElementById('btn-single').style.display=onMain?'':'none';
+  });
 });
 </script>
 </body>
