@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Allegro Netlist Viewer V2.22</title>
+<title>Allegro Netlist Viewer V2.23</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,sans-serif;background:#1e1e1e;color:#d4d4d4;font-size:13px}
@@ -115,7 +115,7 @@ tr:hover td{background:#2a2a2a}
 <!-- Header -->
 <div id="header">
   <h1>Allegro Netlist Viewer</h1>
-  <span id="ver-tag">V2.22 &nbsp;2026-04-22</span>
+  <span id="ver-tag">V2.23 &nbsp;2026-04-22</span>
   <span id="file-info"></span>
   <div id="header-right">
     <label class="btn btn-import" for="file-input">&#8593; 匯入 Netlist</label>
@@ -131,7 +131,7 @@ tr:hover td{background:#2a2a2a}
   <span class="lbl">搜尋：</span>
   <input type="text" id="search" placeholder="RefDes / Pin / Net…" style="width:180px"/>
   <span class="lbl" style="margin-left:8px">隱藏含關鍵字的零件：</span>
-  <input type="text" id="hide-kw" placeholder="例如 SLOT" style="width:140px"/>
+  <input type="text" id="hide-kw" placeholder="多個用逗號，如 SLOT,TP" style="width:180px"/>
   <button class="btn" id="btn-clear-hide" title="清除隱藏關鍵字" style="padding:4px 8px">✕</button>
   <span id="stats"></span>
 </div>
@@ -202,7 +202,7 @@ var netMap      = {};   // net -> [{refdes, pin}]
 var refMap      = {};   // refdes -> [{pin, net}]
 var showSingle  = false;
 var searchQ     = '';
-var hideKw      = '';
+var hideKws     = [];   // array of lowercase keywords
 
 // ══════════════════════════════════════════════
 //  File import
@@ -287,7 +287,7 @@ function parseNetlist(html){
   document.getElementById('empty').style.display='none';
   document.getElementById('tab-bar').style.display='flex';
 
-  showSingle=false; searchQ=''; hideKw='';
+  showSingle=false; searchQ=''; hideKws=[];
   document.getElementById('search').value='';
   document.getElementById('hide-kw').value='';
   document.getElementById('btn-single').classList.remove('active');
@@ -322,11 +322,11 @@ function natCmp(a,b){
 function render(){
   var grid=document.getElementById('grid');
   grid.innerHTML='';
-  var q=searchQ.toLowerCase(), hkw=hideKw.toLowerCase();
+  var q=searchQ.toLowerCase();
   var visCards=0, totalPins=0;
 
   components.forEach(function(comp){
-    if(hkw&&comp.refdes.toLowerCase().indexOf(hkw)!==-1) return;
+    if(hideKws.length>0 && hideKws.some(function(kw){return comp.refdes.toLowerCase().indexOf(kw)!==-1;})) return;
     var vis=comp.pins.filter(function(p){
       if(showSingle&&!p.isSingle) return false;
       if(q) return comp.refdes.toLowerCase().indexOf(q)!==-1||
@@ -537,10 +537,11 @@ document.getElementById('search').addEventListener('input',function(){
   searchQ=this.value.trim(); render();
 });
 document.getElementById('hide-kw').addEventListener('input',function(){
-  hideKw=this.value.trim(); render();
+  hideKws=this.value.split(',').map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
+  render();
 });
 document.getElementById('btn-clear-hide').addEventListener('click',function(){
-  hideKw=''; document.getElementById('hide-kw').value=''; render();
+  hideKws=[]; document.getElementById('hide-kw').value=''; render();
 });
 document.getElementById('btn-expand-all').addEventListener('click',function(){
   document.querySelectorAll('#grid .card').forEach(function(c){c.classList.remove('collapsed');});
