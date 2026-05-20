@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCB 電流計算工具 (IPC-2221)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f3f4f6; font-family: sans-serif; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 24px; position: relative; }
+        .input-group { margin-bottom: 16px; }
+        label { display: block; font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 4px; }
+        input, select { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 1rem; }
+        input:focus { outline: none; border-color: #3b82f6; ring: 2px ring-blue-200; }
+        .result-box { background-color: #eff6ff; border-left: 4px solid #41f63b; padding: 12px; margin-top: 8px; }
+        .header { border-bottom: 2px solid #3b82f6; margin-bottom: 20px; padding-bottom: 10px; }
+        .version-tag { position: absolute; top: 24px; right: 24px; text-align: right; font-size: 0.75rem; color: #9ca3af; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="card">
+            <div class="version-tag">
+                <div>版本: v1.1</div>
+                <div>編寫: chiucp w/ manus</div>
+                <div>日期: 2026-05-20</div>
+            </div>
+            <div class="header">
+                <h1 class="text-2xl font-bold text-gray-800">PCB 電流計算工具 (IPC-2221)</h1>
+                <p class="text-sm text-gray-500">基於 IPC-2221 規範的線寬、電流與溫升計算</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 左側：輸入與設定 -->
+                <div>
+                    <h2 class="text-lg font-semibold mb-4 text-blue-700">基本參數設定</h2>
+                    
+                    <div class="input-group">
+                        <label for="calcType">計算類別</label>
+                        <select id="calcType" onchange="updateLabels()">
+                            <option value="outer">外層導體 (Outer Layer)</option>
+                            <option value="inner">內層導體 (Inner Layer)</option>
+                            <option value="via">過孔 (Via)</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="solveFor">計算目標</label>
+                        <select id="solveFor" onchange="toggleInputs()">
+                            <option value="width">計算線寬 / 面積</option>
+                            <option value="current">計算電流 (A)</option>
+                            <option value="tempRise">計算溫升 (°C)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="input-group">
+                            <label for="ambientTemp">環境溫度 (°C)</label>
+                            <input type="number" id="ambientTemp" value="25" step="0.1" oninput="calculate()">
+                        </div>
+                        <div class="input-group" id="group-tempRise">
+                            <label for="tempRise">溫升 (°C)</label>
+                            <input type="number" id="tempRise" value="20" step="0.1" oninput="calculate()">
+                        </div>
+                    </div>
+
+                    <div class="input-group" id="group-current">
+                        <label for="current">電流 (A)</label>
+                        <input type="number" id="current" value="1" step="0.01" oninput="calculate()">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="input-group">
+                            <label id="label-thickness" for="thickness">銅厚 (oz/ft²)</label>
+                            <input type="number" id="thickness" value="1" step="0.1" oninput="calculate()">
+                        </div>
+                        <div class="input-group" id="group-width">
+                            <label id="label-width" for="width">線寬 (mil)</label>
+                            <input type="number" id="width" value="20" step="0.1" oninput="calculate()">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="length" id="label-length">線長 (mil)</label>
+                        <input type="number" id="length" value="1000" step="1" oninput="calculate()">
+                    </div>
+
+                    <button onclick="calculate()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                        重新計算
+                    </button>
+                </div>
+
+                <!-- 右側：計算結果 -->
+                <div>
+                    <h2 class="text-lg font-semibold mb-4 text-blue-700">計算結果</h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label>導體截面積 (mil²)</label>
+                            <div id="res-area" class="result-box font-mono text-lg">--</div>
+                        </div>
+                        
+                        <div id="res-target-container">
+                            <label id="res-target-label">計算目標結果</label>
+                            <div id="res-target-val" class="result-box font-mono text-lg text-blue-800 font-bold">--</div>
+                        </div>
+
+                        <div>
+                            <label>導體工作溫度 (°C)</label>
+                            <div id="res-totalTemp" class="result-box font-mono text-lg">--</div>
+                        </div>
+
+                        <div>
+                            <label>線阻 (mΩ)</label>
+                            <div id="res-resistance" class="result-box font-mono text-lg">--</div>
+                        </div>
+
+                        <div>
+                            <label>壓降 (mV)</label>
+                            <div id="res-voltageDrop" class="result-box font-mono text-lg">--</div>
+                        </div>
+
+                        <div>
+                            <label>損耗 (mW)</label>
+                            <div id="res-powerLoss" class="result-box font-mono text-lg">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 text-xs text-gray-400 border-t pt-4">
+                <p>備註：</p>
+                <ul class="list-disc ml-5 space-y-1">
+                    <li>IPC-2221 公式：I = k * ΔT^b * A^c</li>
+                    <li>外層 (Outer): k=0.048, b=0.44, c=0.725</li>
+                    <li>內層 (Inner): k=0.024, b=0.44, c=0.725</li>
+                    <li>過孔 (Via): 採用內層參數計算，截面積 A = π * 成品孔徑 * 鍍銅厚度</li>
+                    <li>銅電阻率 ρ = 1.724e-6 Ω·cm (20°C)，溫度係數 α = 0.00393</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateLabels() {
+            const type = document.getElementById('calcType').value;
+            const labelThickness = document.getElementById('label-thickness');
+            const labelWidth = document.getElementById('label-width');
+            const labelLength = document.getElementById('label-length');
+            const inputLength = document.getElementById('length');
+            const inputThickness = document.getElementById('thickness');
+            const inputWidth = document.getElementById('width');
+
+            if (type === 'via') {
+                labelThickness.innerText = '孔壁鍍銅厚度 (mil)';
+                labelWidth.innerText = '成品孔徑 (mil)';
+                labelLength.innerText = '孔長 (mil)';
+                if (inputLength.value == 1000) inputLength.value = 100;
+                if (inputThickness.value == 1) inputThickness.value = 0.8;
+                if (inputWidth.value == 20) inputWidth.value = 10;
+            } else {
+                labelThickness.innerText = '銅厚 (oz/ft²)';
+                labelWidth.innerText = '線寬 (mil)';
+                labelLength.innerText = '線長 (mil)';
+                if (inputLength.value == 100) inputLength.value = 1000;
+                if (inputThickness.value == 0.8) inputThickness.value = 1;
+                if (inputWidth.value == 10) inputWidth.value = 20;
+            }
+            calculate();
+        }
+
+        function toggleInputs() {
+            const solveFor = document.getElementById('solveFor').value;
+            document.getElementById('group-width').style.display = solveFor === 'width' ? 'none' : 'block';
+            document.getElementById('group-current').style.display = solveFor === 'current' ? 'none' : 'block';
+            document.getElementById('group-tempRise').style.display = solveFor === 'tempRise' ? 'none' : 'block';
+            
+            const targetLabel = document.getElementById('res-target-label');
+            if (solveFor === 'width') targetLabel.innerText = '所需線寬 (mil)';
+            if (solveFor === 'current') targetLabel.innerText = '最大電流 (A)';
+            if (solveFor === 'tempRise') targetLabel.innerText = '預估溫升 (°C)';
+            
+            calculate();
+        }
+
+        function calculate() {
+            const type = document.getElementById('calcType').value;
+            const solveFor = document.getElementById('solveFor').value;
+            
+            const ambient = parseFloat(document.getElementById('ambientTemp').value) || 0;
+            let tempRise = parseFloat(document.getElementById('tempRise').value) || 0;
+            let current = parseFloat(document.getElementById('current').value) || 0;
+            let thickness = parseFloat(document.getElementById('thickness').value) || 0;
+            let width = parseFloat(document.getElementById('width').value) || 0;
+            const length = parseFloat(document.getElementById('length').value) || 0;
+
+            // IPC-2221 Constants
+            let k, b = 0.44, c = 0.725;
+            if (type === 'outer') {
+                k = 0.048;
+            } else {
+                k = 0.024;
+            }
+
+            let area; // mil^2
+            let t_mil;
+
+            if (type === 'via') {
+                t_mil = thickness; 
+            } else {
+                t_mil = thickness * 1.378; 
+            }
+
+            if (solveFor === 'width') {
+                area = Math.pow(current / (k * Math.pow(tempRise, b)), 1 / c);
+                if (type === 'via') {
+                    width = area / (Math.PI * t_mil);
+                } else {
+                    width = area / t_mil;
+                }
+            } else if (solveFor === 'current') {
+                if (type === 'via') {
+                    area = Math.PI * width * t_mil;
+                } else {
+                    area = width * t_mil;
+                }
+                current = k * Math.pow(tempRise, b) * Math.pow(area, c);
+            } else if (solveFor === 'tempRise') {
+                if (type === 'via') {
+                    area = Math.PI * width * t_mil;
+                } else {
+                    area = width * t_mil;
+                }
+                tempRise = Math.pow(current / (k * Math.pow(area, c)), 1 / b);
+            }
+
+            if (solveFor !== 'current' && solveFor !== 'tempRise') {
+                // area already calculated
+            } else {
+                if (type === 'via') area = Math.PI * width * t_mil;
+                else area = width * t_mil;
+            }
+
+            const totalTemp = ambient + tempRise;
+            const rho20 = 1.724e-6; 
+            const alpha = 0.00393;
+            const rhoT = rho20 * (1 + alpha * (totalTemp - 20));
+            
+            const length_cm = length * 0.00254;
+            const area_cm2 = area * 6.4516e-6;
+            const resistance = area_cm2 > 0 ? (rhoT * length_cm) / area_cm2 : 0; 
+
+            // Results Display
+            document.getElementById('res-area').innerText = area.toFixed(4);
+            document.getElementById('res-totalTemp').innerText = totalTemp.toFixed(2);
+            
+            const targetValBox = document.getElementById('res-target-val');
+            if (solveFor === 'width') targetValBox.innerText = width.toFixed(2);
+            if (solveFor === 'current') targetValBox.innerText = current.toFixed(3);
+            if (solveFor === 'tempRise') targetValBox.innerText = tempRise.toFixed(2);
+
+            document.getElementById('res-resistance').innerText = (resistance * 1000).toFixed(4);
+            document.getElementById('res-voltageDrop').innerText = (current * resistance * 1000).toFixed(4);
+            document.getElementById('res-powerLoss').innerText = (current * current * resistance * 1000).toFixed(4);
+        }
+
+        // Initial run
+        toggleInputs();
+        updateLabels();
+    </script>
+</body>
+</html>
