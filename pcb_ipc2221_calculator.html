@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCB 導體電流計算 — IPC-2221</title>
+<style>
+/* ===== Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', 'Noto Sans TC', Arial, sans-serif;
+  background: #f4f5f7;
+  color: #1a1a2e;
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ===== Page wrapper ===== */
+.page-wrapper {
+  width: 100%;
+  min-width: 1000px;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 0 0 1px #e0e0e0;
+}
+
+/* ===== Header ===== */
+header {
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 13px 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+header h1 { font-size: 1.02rem; font-weight: 700; color: #1a1a2e; }
+header .std-tag {
+  font-size: 0.7rem; font-weight: 700; color: #fff;
+  background: #2563eb; padding: 2px 9px; border-radius: 20px;
+}
+header .desc { font-size: 0.76rem; color: #aaa; margin-left: auto; }
+
+/* 中英切換按鈕 */
+.lang-btn {
+  padding: 5px 14px;
+  border: 1.5px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+.lang-btn:hover { border-color: #2563eb; color: #2563eb; }
+
+/* ===== Three-column Layout ===== */
+/* 整個 main 固定高度，各欄獨立捲動 */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 450px 1fr;
+  height: calc(100vh - 50px);
+  overflow: hidden;
+}
+
+/* ===== Left Panel ===== */
+.panel-left {
+  background: #fff;
+  border-right: 1px solid #e0e0e0;
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+/* ===== Center Panel ===== */
+.panel-center {
+  background: #f4f5f7;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+/* ===== Right Panel ===== */
+/* 右側歷史紀錄：固定顯示，不隨視窗縮小消失 */
+.panel-right {
+  background: #fff;
+  border-left: 1px solid #e0e0e0;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden; /* 讓內部 history-list 自己捲動 */
+  min-width: 0;     /* 允許 1fr 縮小 */
+}
+
+/* ===== Section Label ===== */
+.section-label {
+  font-size: 0.67rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.4px;
+  color: #999; margin-bottom: 9px;
+}
+
+/* ===== Toggle Buttons ===== */
+.toggle-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.toggle-row input[type="radio"] { display: none; }
+.toggle-row label {
+  flex: 1; min-width: 60px; text-align: center;
+  padding: 6px 6px; border: 1.5px solid #d1d5db;
+  border-radius: 6px; cursor: pointer; font-size: 0.78rem;
+  color: #555; transition: all 0.15s; line-height: 1.4; user-select: none;
+}
+.toggle-row input[type="radio"]:checked + label {
+  background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 600;
+}
+.toggle-row label:hover { border-color: #2563eb; color: #2563eb; }
+.toggle-row input[type="radio"]:checked + label:hover { color: #fff; }
+
+/* ===== Form Fields ===== */
+.field-list { display: flex; flex-direction: column; gap: 9px; }
+.field { display: flex; align-items: stretch; }
+.field label {
+  width: 118px; flex-shrink: 0; font-size: 0.79rem; color: #374151;
+  padding-right: 7px; display: flex; flex-direction: column;
+  justify-content: center; line-height: 1.3;
+}
+.field label .hint { font-size: 0.66rem; color: #9ca3af; font-weight: 400; margin-top: 1px; }
+
+/* 藍色輸入框 */
+.field input[type="number"] {
+  flex: 1; border: 1.5px solid #93c5fd; border-right: none;
+  border-radius: 5px 0 0 5px; padding: 6px 8px; font-size: 0.86rem;
+  color: #1e3a5f; background: #eff6ff; outline: none;
+  transition: border-color 0.15s, background 0.15s; min-width: 0;
+}
+.field input[type="number"]:focus { border-color: #2563eb; background: #dbeafe; }
+.field input[type="number"]:disabled {
+  border-color: #d1d5db; background: #f3f4f6; color: #9ca3af; cursor: not-allowed;
+}
+.field .unit {
+  background: #dbeafe; border: 1.5px solid #93c5fd;
+  border-radius: 0 5px 5px 0; padding: 6px 8px; font-size: 0.76rem;
+  color: #1d4ed8; white-space: nowrap; min-width: 50px; text-align: center;
+  display: flex; align-items: center; justify-content: center; font-weight: 600;
+}
+
+/* 目標欄位 → 灰色，輸入框數值隱藏，label 正常顯示並附加「→ 結果」 */
+.field.is-target input[type="number"] {
+  border-color: #d1d5db; background: #f3f4f6;
+  color: transparent;              /* 隱藏數值文字 */
+  -webkit-text-fill-color: transparent;
+  caret-color: transparent;        /* 隱藏游標 */
+  font-weight: 600;
+}
+.field.is-target .unit { border-color: #d1d5db; background: #e5e7eb; color: #9ca3af; }
+/* label 正常顯示，尾部附加「→ 結果」紅字 */
+.field.is-target label .field-name {
+  color: #374151; /* 正常顯示 */
+}
+.field.is-target label .field-name::after {
+  content: ' → 結果';
+  font-size: 0.72rem;
+  color: #dc2626;
+  font-weight: 700;
+  white-space: nowrap;
+}
+/* hint 正常顯示 */
+.field.is-target label .hint {
+  visibility: visible;
+  color: #9ca3af;
+}
+
+/* Via extra */
+.via-extra { display: none; flex-direction: column; gap: 9px; padding-top: 9px; border-top: 1px dashed #e0e0e0; }
+.via-extra.visible { display: flex; }
+
+/* ===== Divider ===== */
+.divider { border: none; border-top: 1px solid #e5e7eb; margin: 2px 0; }
+
+/* ===== Save Button ===== */
+.save-btn {
+  width: 100%; padding: 9px; background: #2563eb; color: #fff;
+  border: none; border-radius: 7px; font-size: 0.88rem; font-weight: 700;
+  cursor: pointer; transition: background 0.15s; letter-spacing: 0.5px;
+}
+.save-btn:hover { background: #1d4ed8; }
+.save-btn:active { background: #1e40af; }
+
+/* ===== Results Grid ===== */
+.results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+
+.result-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+  padding: 13px 15px; border-top: 3px solid #e5e7eb;
+}
+.result-card.primary   { border-top-color: #2563eb; }
+.result-card.secondary { border-top-color: #10b981; }
+.result-card .rc-label {
+  font-size: 0.69rem; color: #9ca3af; margin-bottom: 5px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;
+}
+.result-card .rc-value {
+  font-size: 1.45rem; font-weight: 700; color: #1a1a2e;
+  font-variant-numeric: tabular-nums; line-height: 1.2;
+}
+.result-card.primary   .rc-value { color: #2563eb; }
+.result-card.secondary .rc-value { color: #059669; }
+.result-card .rc-unit  { font-size: 0.76rem; color: #aaa; margin-left: 3px; font-weight: 400; }
+.result-card .rc-sub   { font-size: 0.7rem; color: #aaa; margin-top: 3px; }
+
+/* ===== Warning ===== */
+.warning {
+  background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px;
+  padding: 8px 12px; font-size: 0.75rem; color: #92400e; display: none;
+}
+.warning.visible { display: block; }
+
+/* ===== History Panel ===== */
+.history-toolbar {
+  display: flex; gap: 6px; align-items: center; flex-shrink: 0;
+}
+.history-toolbar .count-badge {
+  margin-left: auto; font-size: 0.7rem; color: #9ca3af;
+  background: #f3f4f6; border-radius: 10px; padding: 2px 8px;
+  white-space: nowrap;
+}
+.btn-export {
+  flex: 1; padding: 7px 6px; border: 1.5px solid #10b981;
+  background: #fff; color: #059669; border-radius: 6px;
+  font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-export:hover { background: #ecfdf5; }
+.btn-clear {
+  padding: 7px 10px; border: 1.5px solid #e5e7eb;
+  background: #fff; color: #9ca3af; border-radius: 6px;
+  font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-clear:hover { border-color: #ef4444; color: #ef4444; }
+
+/* History list — 獨立捲動區域 */
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0; /* 關鍵：讓 flex child 可以縮小並捲動 */
+}
+.history-empty {
+  text-align: center; color: #d1d5db; font-size: 0.8rem;
+  padding: 32px 0; line-height: 2;
+}
+
+/* 歷史卡片：修正 ✕ 與時間戳疊在一起的問題 */
+.history-item {
+  background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 7px;
+  padding: 10px 12px 10px 12px;
+  transition: border-color 0.15s;
+  position: relative;
+  flex-shrink: 0;
+}
+.history-item:hover { border-color: #93c5fd; background: #eff6ff; }
+
+/* 頂部列：序號+標籤 在左，時間在中，✕ 在右 */
+.history-item .hi-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 5px;
+  padding-right: 24px; /* 為 ✕ 按鈕留空間 */
+}
+.history-item .hi-seq-num {
+  font-size: 0.65rem; color: #9ca3af; font-weight: 600; flex-shrink: 0;
+}
+.history-item .hi-time {
+  font-size: 0.63rem; color: #c4c9d4; margin-left: auto; flex-shrink: 0;
+}
+.history-item .hi-del {
+  position: absolute; top: 7px; right: 8px;
+  background: none; border: none; color: #c4c9d4; cursor: pointer;
+  font-size: 0.82rem; padding: 2px 5px; border-radius: 3px;
+  transition: color 0.15s; line-height: 1;
+  flex-shrink: 0;
+}
+.history-item .hi-del:hover { color: #ef4444; background: #fee2e2; }
+.history-item .hi-target {
+  font-size: 0.86rem; font-weight: 700; color: #2563eb; margin-bottom: 5px;
+}
+.history-item .hi-params {
+  font-size: 0.71rem; color: #6b7280; line-height: 1.65;
+}
+.history-item .hi-tag {
+  display: inline-block; font-size: 0.63rem; font-weight: 700;
+  padding: 1px 6px; border-radius: 3px; margin-right: 3px;
+}
+.tag-int  { background: #eff6ff; color: #2563eb; }
+.tag-ext  { background: #f0fdf4; color: #16a34a; }
+.tag-via  { background: #fdf4ff; color: #9333ea; }
+.tag-cur  { background: #fff7ed; color: #ea580c; }
+.tag-wid  { background: #fef9c3; color: #ca8a04; }
+.tag-tmp  { background: #fce7f3; color: #db2777; }
+
+/* ===== Formula Section ===== */
+.formula-section {
+  background: #fff; border-top: 1px solid #e0e0e0; padding: 24px 24px 28px;
+}
+.formula-section .section-label { margin-bottom: 14px; }
+.formula-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px;
+}
+.formula-block {
+  background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 7px; padding: 13px 15px;
+}
+.formula-block .fb-title {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: #6b7280; margin-bottom: 9px;
+  padding-bottom: 6px; border-bottom: 1px solid #e5e7eb;
+}
+.formula-block table {
+  width: 100%; border-collapse: collapse; font-size: 0.79rem; line-height: 1.7;
+}
+.formula-block table td { vertical-align: top; color: #374151; padding: 1px 0; }
+.formula-block table td.sym {
+  font-family: 'Courier New', monospace; color: #1d4ed8; font-weight: 700;
+  white-space: nowrap; padding-right: 9px; width: 1%;
+}
+.formula-block table td.eq { color: #6b7280; padding-right: 5px; width: 1%; }
+.formula-block .formula-main {
+  font-family: 'Courier New', monospace; font-size: 0.83rem; font-weight: 700;
+  color: #1d4ed8; background: #eff6ff; border-radius: 4px;
+  padding: 5px 9px; margin-bottom: 9px; display: block; word-break: break-all;
+}
+.formula-block .note { font-size: 0.71rem; color: #9ca3af; margin-top: 5px; line-height: 1.5; }
+
+/* ===== Copyright Banner ===== */
+.copyright-banner {
+  background: #1a1a2e;
+  color: #e2e8f0;
+  text-align: center;
+  padding: 11px 24px 13px;
+  font-size: 0.76rem;
+  letter-spacing: 0.3px;
+  border-top: 3px solid #2563eb;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.copyright-banner .copy-main {
+  font-weight: 700;
+  color: #fff;
+  font-size: 0.84rem;
+  margin-bottom: 3px;
+  letter-spacing: 0.5px;
+}
+.copyright-banner .copy-sub {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  margin-bottom: 5px;
+}
+.copyright-banner .copy-warn {
+  display: inline-block;
+  color: #fbbf24;
+  font-weight: 700;
+  font-size: 0.73rem;
+  border: 1.5px solid #fbbf24;
+  border-radius: 4px;
+  padding: 2px 14px;
+  letter-spacing: 0.6px;
+}
+
+/* ===== Footer ===== */
+.app-footer {
+  text-align: center; font-size: 0.71rem; color: #9ca3af;
+  padding: 8px 0 14px; border-top: 1px solid #e5e7eb; background: #fff;
+}
+
+/* hide number arrows */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+input[type=number] { -moz-appearance: textfield; }
+</style>
+</head>
+<body>
+
+<div class="page-wrapper">
+
+<!-- Header -->
+<header>
+  <h1 data-i18n="title">PCB 導體電流計算</h1>
+  <span class="std-tag">IPC-2221</span>
+  <span class="desc">ANSI/IPC-2221 / IPC-2221B &nbsp;·&nbsp; <span data-i18n="realtime">即時計算</span> &nbsp;·&nbsp; v2.7 &nbsp;·&nbsp; chiucp w/ manus</span>
+  <button class="lang-btn" id="lang_btn" onclick="toggleLang()">EN</button>
+</header>
+
+<div class="main">
+
+  <!-- ===== Left: Inputs ===== -->
+  <div class="panel-left">
+
+    <div>
+      <div class="section-label" data-i18n="obj_label">計算對象</div>
+      <div class="toggle-row">
+        <input type="radio" id="obj_int" name="layer_type" value="internal" checked>
+        <label for="obj_int"><span data-i18n="obj_int">內層導體</span><br><small style="font-weight:400;color:inherit;opacity:.8">Internal k=0.024</small></label>
+        <input type="radio" id="obj_ext" name="layer_type" value="external">
+        <label for="obj_ext"><span data-i18n="obj_ext">外層導體</span><br><small style="font-weight:400;color:inherit;opacity:.8">External k=0.048</small></label>
+        <input type="radio" id="obj_via" name="layer_type" value="via">
+        <label for="obj_via"><span data-i18n="obj_via">Via 過孔</span><br><small style="font-weight:400;color:inherit;opacity:.8">PTH k=0.048</small></label>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label" data-i18n="tgt_label">計算目標</div>
+      <div class="toggle-row">
+        <input type="radio" id="tgt_cur" name="calc_target" value="current" checked>
+        <label for="tgt_cur"><span data-i18n="tgt_cur">計算電流</span><br><small style="font-weight:400;color:inherit;opacity:.8" data-i18n="tgt_cur_sub">已知線寬→求 I</small></label>
+        <input type="radio" id="tgt_wid" name="calc_target" value="width">
+        <label for="tgt_wid"><span data-i18n="tgt_wid">計算線寬</span><br><small style="font-weight:400;color:inherit;opacity:.8" data-i18n="tgt_wid_sub">已知電流→求 W</small></label>
+        <input type="radio" id="tgt_tmp" name="calc_target" value="temp">
+        <label for="tgt_tmp"><span data-i18n="tgt_tmp">計算溫升</span><br><small style="font-weight:400;color:inherit;opacity:.8" data-i18n="tgt_tmp_sub">已知兩者→求 ΔT</small></label>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-label" data-i18n="param_label">輸入參數</div>
+      <div class="field-list">
+
+        <div class="field" id="pf_ambient">
+          <label for="v_ambient">
+            <span class="field-name" data-i18n="f_ambient">環境溫度</span>
+            <span class="hint" data-i18n="f_ambient_hint">建議範圍：0 ~ 85 °C</span>
+          </label>
+          <input type="number" id="v_ambient" value="25" step="1" min="-40" max="125">
+          <span class="unit">°C</span>
+        </div>
+
+        <div class="field" id="pf_temp_rise">
+          <label for="v_temp_rise">
+            <span class="field-name" data-i18n="f_temprise">允許溫升 ΔT</span>
+            <span class="hint" data-i18n="f_temprise_hint">IPC-2221 建議：10~100 °C</span>
+          </label>
+          <input type="number" id="v_temp_rise" value="10" step="1" min="1" max="100">
+          <span class="unit">°C</span>
+        </div>
+
+        <div class="field" id="pf_current">
+          <label for="v_current">
+            <span class="field-name" data-i18n="f_current">電流 I</span>
+            <span class="hint" data-i18n="f_current_hint">IPC-2221 範圍：0.1~35 A</span>
+          </label>
+          <input type="number" id="v_current" value="1" step="0.1" min="0.001">
+          <span class="unit">A</span>
+        </div>
+
+        <div class="field" id="pf_thickness">
+          <label for="v_thickness">
+            <span class="field-name" id="lbl_thickness" data-i18n="f_thickness">銅厚</span>
+            <span class="hint" data-i18n="f_thickness_hint">常用：0.5 / 1 / 2 / 3 oz/ft²</span>
+          </label>
+          <input type="number" id="v_thickness" value="1" step="0.5" min="0.1" max="10">
+          <span class="unit" id="unit_thickness">oz/ft²</span>
+        </div>
+
+        <div class="field" id="pf_width">
+          <label for="v_width">
+            <span class="field-name" id="lbl_width" data-i18n="f_width">線寬</span>
+            <span class="hint" id="hint_width" data-i18n="f_width_hint">建議範圍：1~400 mil</span>
+          </label>
+          <input type="number" id="v_width" value="10" step="1" min="0.1">
+          <span class="unit" id="unit_width">mil</span>
+        </div>
+
+        <div class="field" id="pf_length">
+          <label for="v_length">
+            <span class="field-name" data-i18n="f_length">導體長度</span>
+            <span class="hint" data-i18n="f_length_hint">用於計算電阻、壓降</span>
+          </label>
+          <input type="number" id="v_length" value="1000" step="100" min="1">
+          <span class="unit">mil</span>
+        </div>
+
+        <div class="via-extra" id="via_extra">
+          <div class="field">
+            <label for="v_via_plating">
+              <span class="field-name" data-i18n="f_via_plating">孔壁鍍銅厚</span>
+              <span class="hint" data-i18n="f_via_plating_hint">標準≈1.0 mil (25 µm)</span>
+            </label>
+            <input type="number" id="v_via_plating" value="1.0" step="0.1" min="0.1">
+            <span class="unit">mil</span>
+          </div>
+          <div class="field">
+            <label for="v_via_count">
+              <span class="field-name" data-i18n="f_via_count">並聯 Via 數</span>
+              <span class="hint" data-i18n="f_via_count_hint">多 Via 可分擔電流</span>
+            </label>
+            <input type="number" id="v_via_count" value="1" step="1" min="1">
+            <span class="unit" data-i18n="unit_pcs">個</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <hr class="divider">
+    <button class="save-btn" onclick="saveHistory()" data-i18n="save_btn">＋ 儲存此次結果到歷史紀錄</button>
+
+  </div><!-- /panel-left -->
+
+  <!-- ===== Center: Results ===== -->
+  <div class="panel-center">
+
+    <div>
+      <div class="section-label" data-i18n="result_label">計算結果</div>
+      <div class="warning" id="warning_box" data-i18n="warning_text">
+        ⚠ 輸入值超出 IPC-2221 建議範圍（電流 ≤ 35 A、溫升 10~100 °C、線寬 ≤ 400 mil），計算結果為外推估算，請謹慎使用。
+      </div>
+    </div>
+
+    <div class="results-grid" id="results_grid"></div>
+
+  </div><!-- /panel-center -->
+
+  <!-- ===== Right: History ===== -->
+  <div class="panel-right">
+
+    <div class="section-label" data-i18n="hist_label">歷史紀錄</div>
+
+    <div class="history-toolbar">
+      <button class="btn-export" onclick="exportExcel()" data-i18n="export_btn">↓ 匯出 Excel</button>
+      <button class="btn-clear"  onclick="clearHistory()" data-i18n="clear_btn">清除</button>
+      <span class="count-badge" id="hist_count">0 筆</span>
+    </div>
+
+    <div class="history-list" id="history_list">
+      <div class="history-empty" id="history_empty">
+        <span data-i18n="hist_empty">尚無紀錄</span><br>
+        <span style="font-size:0.7rem" data-i18n="hist_empty_sub">按左側「儲存」按鈕<br>將結果加入歷史</span>
+      </div>
+    </div>
+
+  </div><!-- /panel-right -->
+
+</div><!-- /main -->
+
+<!-- ===== Formula Section ===== -->
+<div class="formula-section">
+  <div class="section-label" data-i18n="formula_label">公式說明 — IPC-2221 Section 6.2</div>
+  <div class="formula-grid">
+
+    <div class="formula-block">
+      <div class="fb-title" data-i18n="fb1_title">主要電流公式</div>
+      <span class="formula-main">I = k × ΔT^0.44 × A^0.725</span>
+      <table>
+        <tr><td class="sym">I</td><td class="eq">=</td><td data-i18n="fb1_I">最大允許電流 (A)</td></tr>
+        <tr><td class="sym">k</td><td class="eq">=</td><td data-i18n="fb1_k">0.024（內層）/ 0.048（外層 &amp; Via）</td></tr>
+        <tr><td class="sym">ΔT</td><td class="eq">=</td><td data-i18n="fb1_dT">允許溫升 (°C)</td></tr>
+        <tr><td class="sym">A</td><td class="eq">=</td><td data-i18n="fb1_A">導體截面積 (mil²)</td></tr>
+      </table>
+    </div>
+
+    <div class="formula-block">
+      <div class="fb-title" data-i18n="fb2_title">反推公式</div>
+      <span class="formula-main">A = ( I / (k × ΔT^0.44) )^(1/0.725)</span>
+      <div class="note" data-i18n="fb2_note1">已知電流與溫升 → 求最小截面積（再除以銅厚得線寬）</div>
+      <br>
+      <span class="formula-main">ΔT = ( I / (k × A^0.725) )^(1/0.44)</span>
+      <div class="note" data-i18n="fb2_note2">已知電流與截面積 → 求預估溫升</div>
+    </div>
+
+    <div class="formula-block">
+      <div class="fb-title" data-i18n="fb3_title">截面積計算</div>
+      <span class="formula-main">A [mil²] = 線寬 [mil] × 銅厚 [mil]</span>
+      <table>
+        <tr><td class="sym">1 oz/ft²</td><td class="eq">=</td><td>1.378 mil</td></tr>
+        <tr><td class="sym">2 oz/ft²</td><td class="eq">=</td><td>2.756 mil</td></tr>
+      </table>
+      <br>
+      <span class="formula-main">A_via = π×D×t + π×t²</span>
+      <table>
+        <tr><td class="sym">D</td><td class="eq">=</td><td data-i18n="fb3_D">成品孔徑 (mil)</td></tr>
+        <tr><td class="sym">t</td><td class="eq">=</td><td data-i18n="fb3_t">孔壁鍍銅厚度 (mil)</td></tr>
+      </table>
+      <div class="note" data-i18n="fb3_note">Via 採用外層公式（k = 0.048）</div>
+    </div>
+
+    <div class="formula-block">
+      <div class="fb-title" data-i18n="fb4_title">電阻 / 壓降 / 損耗（含溫度補償）</div>
+      <span class="formula-main">R = ρ × L / A × [1 + α×(T_op − 20)]</span>
+      <table>
+        <tr><td class="sym">ρ</td><td class="eq">=</td><td data-i18n="fb4_rho">1.724×10⁻⁶ Ω·cm（銅，20°C）</td></tr>
+        <tr><td class="sym">α</td><td class="eq">=</td><td data-i18n="fb4_alpha">0.00393 /°C（銅電阻溫度係數）</td></tr>
+        <tr><td class="sym">T_op</td><td class="eq">=</td><td data-i18n="fb4_Top">T_amb + ΔT（導體工作溫度）</td></tr>
+        <tr><td class="sym">V_drop</td><td class="eq">=</td><td>I × R</td></tr>
+        <tr><td class="sym">P_loss</td><td class="eq">=</td><td>I² × R</td></tr>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<div class="copyright-banner">
+  <div class="copy-main">© 2026 chiucp &nbsp;·&nbsp; PCB IPC-2221 Conductor Current Calculator &nbsp;·&nbsp; All Rights Reserved.</div>
+  <div class="copy-sub">本工具著作權歸屬 chiucp 所有，保留一切權利。Copyrighted work by chiucp, all rights reserved.</div>
+  <div><span class="copy-warn">⚠ 禁止任意轉載、複製、散布或作為商業用途 &nbsp;·&nbsp; Unauthorized reproduction, redistribution or commercial use is strictly prohibited.</span></div>
+</div>
+
+<div class="app-footer">
+  <span data-i18n="footer_std">基於 ANSI/IPC-2221 / IPC-2221B 規範</span> &nbsp;|&nbsp;
+  <span data-i18n="footer_note">本工具僅供設計參考，實際設計請以完整規範為準</span> &nbsp;|&nbsp;
+  <span data-i18n="footer_range">IPC-2221 資料適用範圍：電流 0.1~35 A、溫升 10~100 °C、線寬 1~400 mil、銅厚 0.5~3 oz/ft²</span> &nbsp;|&nbsp;
+  v2.7 &nbsp;·&nbsp; 2026-05-21 &nbsp;·&nbsp; chiucp w/ manus
+</div>
+
+</div><!-- /page-wrapper -->
+
+<script>
+// ============================================================
+// 多語言字典
+// ============================================================
+const I18N = {
+  zh: {
+    title: 'PCB 導體電流計算', realtime: '即時計算',
+    obj_label: '計算對象', obj_int: '內層導體', obj_ext: '外層導體', obj_via: 'Via 過孔',
+    tgt_label: '計算目標',
+    tgt_cur: '計算電流', tgt_cur_sub: '已知線寬→求 I',
+    tgt_wid: '計算線寬', tgt_wid_sub: '已知電流→求 W',
+    tgt_tmp: '計算溫升', tgt_tmp_sub: '已知兩者→求 ΔT',
+    param_label: '輸入參數',
+    f_ambient: '環境溫度', f_ambient_hint: '建議範圍：0 ~ 85 °C',
+    f_temprise: '允許溫升 ΔT', f_temprise_hint: 'IPC-2221 建議：10~100 °C',
+    f_current: '電流 I', f_current_hint: 'IPC-2221 範圍：0.1~35 A',
+    f_thickness: '銅厚', f_thickness_hint: '常用：0.5 / 1 / 2 / 3 oz/ft²',
+    f_width: '線寬', f_width_hint: '建議範圍：1~400 mil',
+    f_length: '導體長度', f_length_hint: '用於計算電阻、壓降',
+    f_via_plating: '孔壁鍍銅厚', f_via_plating_hint: '標準≈1.0 mil (25 µm)',
+    f_via_count: '並聯 Via 數', f_via_count_hint: '多 Via 可分擔電流',
+    unit_pcs: '個',
+    save_btn: '＋ 儲存此次結果到歷史紀錄',
+    result_label: '計算結果',
+    warning_text: '⚠ 輸入值超出 IPC-2221 建議範圍（電流 ≤ 35 A、溫升 10~100 °C、線寬 ≤ 400 mil），計算結果為外推估算，請謹慎使用。',
+    hist_label: '歷史紀錄', export_btn: '↓ 匯出 Excel', clear_btn: '清除',
+    hist_empty: '尚無紀錄', hist_empty_sub: '按左側「儲存」按鈕<br>將結果加入歷史',
+    formula_label: '公式說明 — IPC-2221 Section 6.2',
+    fb1_title: '主要電流公式', fb1_I: '最大允許電流 (A)',
+    fb1_k: '0.024（內層）/ 0.048（外層 & Via）', fb1_dT: '允許溫升 (°C)', fb1_A: '導體截面積 (mil²)',
+    fb2_title: '反推公式',
+    fb2_note1: '已知電流與溫升 → 求最小截面積（再除以銅厚得線寬）',
+    fb2_note2: '已知電流與截面積 → 求預估溫升',
+    fb3_title: '截面積計算', fb3_D: '成品孔徑 (mil)', fb3_t: '孔壁鍍銅厚度 (mil)',
+    fb3_note: 'Via 採用外層公式（k = 0.048）',
+    fb4_title: '電阻 / 壓降 / 損耗（含溫度補償）',
+    fb4_rho: '1.724×10⁻⁶ Ω·cm（銅，20°C）', fb4_alpha: '0.00393 /°C（銅電阻溫度係數）',
+    fb4_Top: 'T_amb + ΔT（導體工作溫度）',
+    footer_std: '基於 ANSI/IPC-2221 / IPC-2221B 規範',
+    footer_note: '本工具僅供設計參考，實際設計請以完整規範為準',
+    footer_range: 'IPC-2221 資料適用範圍：電流 0.1~35 A、溫升 10~100 °C、線寬 1~400 mil、銅厚 0.5~3 oz/ft²',
+    // result card labels
+    rc_max_current: '最大允許電流', rc_min_width: '所需最小線寬', rc_min_via: '所需最小孔徑',
+    rc_temp_rise: '預估溫升 ΔT', rc_area: '導體截面積（單路）',
+    rc_resist: '導體電阻', rc_via_resist: '單 Via 電阻',
+    rc_voltage: '電壓降', rc_power: '功率損耗',
+    rc_op_temp: '導體工作溫度', rc_cu_thick: '銅厚（換算）', rc_plating: '孔壁鍍銅厚度',
+    rc_via_per: '每 Via', rc_width_mm: '線寬', rc_via_mm: '成品孔徑',
+    rc_op_temp_sub: '環境', rc_op_temp_plus: '°C + 溫升',
+    rc_total_area: '並聯總截面積', rc_total_resist: '並聯總電阻',
+    hist_count_unit: '筆',
+    // history labels
+    layer_int: '內層', layer_ext: '外層', layer_via: 'Via',
+    tgt_cur_h: '求電流', tgt_wid_h: '求線寬', tgt_tmp_h: '求溫升',
+    h_ambient: '環境', h_dt: 'ΔT', h_current: 'I',
+    h_width: '線寬', h_thickness: '銅厚', h_length: '長',
+    h_via_d: '孔徑', h_via_plating: '鍍銅', h_via_count: '並聯',
+    h_main_cur: '電流', h_main_wid: '線寬', h_main_tmp: '溫升',
+    confirm_clear: '確定要清除所有歷史紀錄？',
+    alert_empty: '歷史紀錄為空，請先儲存計算結果。',
+    via_label: 'Via',
+    // via UI
+    f_via_width: '成品孔徑 (FHD)', f_via_width_hint: '常用：8~40 mil（0.2~1.0 mm）',
+  },
+  en: {
+    title: 'PCB Conductor Current Calc', realtime: 'Live Calc',
+    obj_label: 'Layer Type', obj_int: 'Internal', obj_ext: 'External', obj_via: 'Via (PTH)',
+    tgt_label: 'Calc Target',
+    tgt_cur: 'Calc Current', tgt_cur_sub: 'Known W → Solve I',
+    tgt_wid: 'Calc Width', tgt_wid_sub: 'Known I → Solve W',
+    tgt_tmp: 'Calc Temp Rise', tgt_tmp_sub: 'Known Both → Solve ΔT',
+    param_label: 'Input Parameters',
+    f_ambient: 'Ambient Temp', f_ambient_hint: 'Suggested: 0 ~ 85 °C',
+    f_temprise: 'Allowed ΔT', f_temprise_hint: 'IPC-2221: 10~100 °C',
+    f_current: 'Current I', f_current_hint: 'IPC-2221 range: 0.1~35 A',
+    f_thickness: 'Cu Thickness', f_thickness_hint: 'Common: 0.5 / 1 / 2 / 3 oz/ft²',
+    f_width: 'Trace Width', f_width_hint: 'Suggested: 1~400 mil',
+    f_length: 'Conductor Length', f_length_hint: 'Used for R, V drop calc',
+    f_via_plating: 'Via Plating', f_via_plating_hint: 'Std ≈ 1.0 mil (25 µm)',
+    f_via_count: 'Parallel Vias', f_via_count_hint: 'Multiple vias share current',
+    unit_pcs: 'pcs',
+    save_btn: '＋ Save Result to History',
+    result_label: 'Results',
+    warning_text: '⚠ Input out of IPC-2221 range (I ≤ 35 A, ΔT 10~100 °C, W ≤ 400 mil). Results are extrapolated — use with caution.',
+    hist_label: 'History', export_btn: '↓ Export Excel', clear_btn: 'Clear',
+    hist_empty: 'No records yet', hist_empty_sub: 'Click "Save" button<br>to add results here',
+    formula_label: 'Formula Reference — IPC-2221 Section 6.2',
+    fb1_title: 'Current Formula', fb1_I: 'Max allowable current (A)',
+    fb1_k: '0.024 (internal) / 0.048 (external & Via)', fb1_dT: 'Allowed temp rise (°C)', fb1_A: 'Conductor cross-section (mil²)',
+    fb2_title: 'Inverse Formulas',
+    fb2_note1: 'Known I & ΔT → Solve min area (divide by Cu thickness for width)',
+    fb2_note2: 'Known I & area → Solve estimated ΔT',
+    fb3_title: 'Cross-Section Calc', fb3_D: 'Finished hole diameter (mil)', fb3_t: 'Via plating thickness (mil)',
+    fb3_note: 'Via uses external formula (k = 0.048)',
+    fb4_title: 'R / V-drop / Power Loss (with Temp Compensation)',
+    fb4_rho: '1.724×10⁻⁶ Ω·cm (Cu, 20°C)', fb4_alpha: '0.00393 /°C (Cu temp coeff)',
+    fb4_Top: 'T_amb + ΔT (operating temp)',
+    footer_std: 'Based on ANSI/IPC-2221 / IPC-2221B',
+    footer_note: 'For design reference only. Verify against full standard.',
+    footer_range: 'IPC-2221 valid range: I 0.1~35 A, ΔT 10~100 °C, W 1~400 mil, Cu 0.5~3 oz/ft²',
+    rc_max_current: 'Max Allowable Current', rc_min_width: 'Min Required Width', rc_min_via: 'Min Required Hole Dia.',
+    rc_temp_rise: 'Estimated Temp Rise ΔT', rc_area: 'Cross-Section (Single)',
+    rc_resist: 'Conductor Resistance', rc_via_resist: 'Single Via Resistance',
+    rc_voltage: 'Voltage Drop', rc_power: 'Power Loss',
+    rc_op_temp: 'Operating Temperature', rc_cu_thick: 'Cu Thickness (converted)', rc_plating: 'Via Plating Thickness',
+    rc_via_per: 'Per Via', rc_width_mm: 'Width', rc_via_mm: 'Hole Dia.',
+    rc_op_temp_sub: 'Ambient', rc_op_temp_plus: '°C + Rise',
+    rc_total_area: 'Total Parallel Area', rc_total_resist: 'Total Parallel R',
+    hist_count_unit: 'rec.',
+    layer_int: 'INT', layer_ext: 'EXT', layer_via: 'Via',
+    tgt_cur_h: 'Calc I', tgt_wid_h: 'Calc W', tgt_tmp_h: 'Calc ΔT',
+    h_ambient: 'Amb', h_dt: 'ΔT', h_current: 'I',
+    h_width: 'W', h_thickness: 'Cu', h_length: 'L',
+    h_via_d: 'Dia', h_via_plating: 'Plating', h_via_count: 'Parallel',
+    h_main_cur: 'I', h_main_wid: 'W', h_main_tmp: 'ΔT',
+    confirm_clear: 'Clear all history records?',
+    alert_empty: 'No history. Please save a result first.',
+    via_label: 'Via',
+    f_via_width: 'Hole Dia. (FHD)', f_via_width_hint: 'Common: 8~40 mil (0.2~1.0 mm)',
+  }
+};
+
+let currentLang = 'zh';
+
+function t(key) { return I18N[currentLang][key] || key; }
+
+function toggleLang() {
+  currentLang = (currentLang === 'zh') ? 'en' : 'zh';
+  document.getElementById('lang_btn').textContent = (currentLang === 'zh') ? 'EN' : '中文';
+  applyI18n();
+  updateUI();
+  renderResults(currentResult);
+  renderHistory();
+}
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (I18N[currentLang][key] !== undefined) el.innerHTML = I18N[currentLang][key];
+  });
+  // 更新 hist_count 單位
+  const cnt = document.getElementById('hist_count');
+  if (cnt) cnt.textContent = `${historyData.length} ${t('hist_count_unit')}`;
+}
+
+// ============================================================
+// 常數
+// ============================================================
+const K_INT      = 0.024;
+const K_EXT      = 0.048;
+const MIL_PER_OZ = 1.378;
+const RHO_CU     = 1.724e-6;
+const ALPHA_CU   = 0.00393;
+const MIL2_CM2   = 6.4516e-6;
+const MIL_CM     = 2.54e-3;
+
+let historyData = [];
+let historySeq  = 0;
+let currentResult = null;
+
+// ============================================================
+// 監聽所有輸入 → 即時計算
+// ============================================================
+document.querySelectorAll('input').forEach(el => {
+  el.addEventListener('input',  onAnyChange);
+  el.addEventListener('change', onAnyChange);
+});
+function onAnyChange() { updateUI(); calculate(); }
+
+// ============================================================
+// 更新 UI 狀態
+// ============================================================
+function updateUI() {
+  const layer  = document.querySelector('input[name="layer_type"]:checked').value;
+  const target = document.querySelector('input[name="calc_target"]:checked').value;
+  const isVia  = (layer === 'via');
+
+  document.getElementById('via_extra').classList.toggle('visible', isVia);
+
+  if (isVia) {
+    document.getElementById('lbl_width').textContent  = t('f_via_width');
+    document.getElementById('unit_width').textContent = 'mil';
+    document.getElementById('hint_width').textContent = t('f_via_width_hint');
+    document.getElementById('pf_thickness').style.display = 'none';
+  } else {
+    document.getElementById('lbl_width').textContent  = t('f_width');
+    document.getElementById('unit_width').textContent = 'mil';
+    document.getElementById('hint_width').textContent = t('f_width_hint');
+    document.getElementById('pf_thickness').style.display = 'flex';
+  }
+
+  const map = { current: 'pf_current', width: 'pf_width', temp: 'pf_temp_rise' };
+  ['pf_current','pf_width','pf_temp_rise'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('is-target');
+    el.querySelector('input').disabled = false;
+  });
+  const tEl = document.getElementById(map[target]);
+  if (tEl) { tEl.classList.add('is-target'); tEl.querySelector('input').disabled = true; }
+}
+
+// ============================================================
+// 計算核心
+// ============================================================
+function calculate() {
+  const layer  = document.querySelector('input[name="layer_type"]:checked').value;
+  const target = document.querySelector('input[name="calc_target"]:checked').value;
+  const isVia  = (layer === 'via');
+
+  const ambientTemp = parseFloat(document.getElementById('v_ambient').value)     || 25;
+  const lengthMil   = parseFloat(document.getElementById('v_length').value)      || 1000;
+  const thickness   = parseFloat(document.getElementById('v_thickness').value)   || 1;
+  const viaPlating  = parseFloat(document.getElementById('v_via_plating').value) || 1.0;
+  const viaCount    = Math.max(1, parseInt(document.getElementById('v_via_count').value) || 1);
+
+  let tempRise = parseFloat(document.getElementById('v_temp_rise').value) || 10;
+  let current  = parseFloat(document.getElementById('v_current').value)   || 1;
+  let width    = parseFloat(document.getElementById('v_width').value)     || 10;
+
+  const k = (layer === 'internal') ? K_INT : K_EXT;
+
+  function getArea(w) {
+    if (isVia) return Math.PI * w * viaPlating + Math.PI * viaPlating * viaPlating;
+    return w * (thickness * MIL_PER_OZ);
+  }
+
+  let areaSingle = 0;
+
+  if (target === 'current') {
+    areaSingle = getArea(width);
+    const I_s = k * Math.pow(tempRise, 0.44) * Math.pow(areaSingle, 0.725);
+    current = isVia ? I_s * viaCount : I_s;
+  } else if (target === 'width') {
+    const I_per = isVia ? current / viaCount : current;
+    areaSingle = Math.pow(I_per / (k * Math.pow(tempRise, 0.44)), 1 / 0.725);
+    if (isVia) {
+      const tp = viaPlating;
+      width = (areaSingle - Math.PI * tp * tp) / (Math.PI * tp);
+      if (width < 0) width = 0;
+    } else {
+      width = areaSingle / (thickness * MIL_PER_OZ);
+    }
+  } else {
+    areaSingle = getArea(width);
+    const I_per = isVia ? current / viaCount : current;
+    tempRise = Math.pow(I_per / (k * Math.pow(areaSingle, 0.725)), 1 / 0.44);
+  }
+
+  const T_op     = ambientTemp + tempRise;
+  const rho      = RHO_CU * (1 + ALPHA_CU * (T_op - 20));
+  const areaCm2  = areaSingle * MIL2_CM2;
+  const lenCm    = lengthMil * MIL_CM;
+  const R_single = (rho * lenCm) / areaCm2;
+  const R_total  = isVia ? R_single / viaCount : R_single;
+
+  const R_mohm  = R_total  * 1000;
+  const Rs_mohm = R_single * 1000;
+  const V_mV    = current * R_total * 1000;
+  const P_mW    = current * current * R_total * 1000;
+
+  const warn = (current > 35 || tempRise < 10 || tempRise > 100 || width > 400);
+  document.getElementById('warning_box').classList.toggle('visible', warn);
+
+  currentResult = {
+    layer, target, isVia, viaCount,
+    ambientTemp, tempRise, current, width, thickness, viaPlating,
+    lengthMil, areaSingle, R_mohm, Rs_mohm, V_mV, P_mW, T_op
+  };
+
+  renderResults(currentResult);
+}
+
+// ============================================================
+// 渲染結果卡片
+// ============================================================
+function renderResults(d) {
+  if (!d) return;
+  const grid = document.getElementById('results_grid');
+
+  function card(labelKey, value, unit, sub, type) {
+    const cls = type === 'primary' ? 'primary' : type === 'secondary' ? 'secondary' : '';
+    const subHtml = sub ? `<div class="rc-sub">${sub}</div>` : '';
+    return `<div class="result-card ${cls}">
+      <div class="rc-label">${t(labelKey)}</div>
+      <div class="rc-value">${value}<span class="rc-unit">${unit}</span></div>
+      ${subHtml}
+    </div>`;
+  }
+
+  let html = '';
+
+  if (d.target === 'current') {
+    const sub = (d.isVia && d.viaCount > 1) ? `${t('rc_via_per')}: ${fmt(d.current / d.viaCount, 3)} A` : '';
+    html += card('rc_max_current', fmt(d.current, 3), 'A', sub, 'primary');
+  } else if (d.target === 'width') {
+    const mm  = (d.width * 0.0254).toFixed(3);
+    const sub = d.isVia ? `${t('rc_via_mm')} ${mm} mm` : `${t('rc_width_mm')} ${mm} mm`;
+    html += card(d.isVia ? 'rc_min_via' : 'rc_min_width', fmt(d.width, 2), 'mil', sub, 'primary');
+  } else {
+    html += card('rc_temp_rise', fmt(d.tempRise, 2), '°C',
+      `${t('rc_op_temp')} ${fmt(d.T_op, 1)} °C`, 'primary');
+  }
+
+  const areaSub = (d.isVia && d.viaCount > 1)
+    ? `${t('rc_total_area')} ${fmt(d.areaSingle * d.viaCount, 3)} mil²` : '';
+  html += card('rc_area', fmt(d.areaSingle, 3), 'mil²', areaSub, 'secondary');
+
+  if (d.isVia && d.viaCount > 1) {
+    html += card('rc_via_resist', fmt(d.Rs_mohm, 3), 'mΩ',
+      `${t('rc_total_resist')} ${fmt(d.R_mohm, 3)} mΩ`, '');
+  } else {
+    html += card('rc_resist', fmt(d.R_mohm, 3), 'mΩ', '', '');
+  }
+
+  html += card('rc_voltage', fmt(d.V_mV, 3), 'mV', '', '');
+  html += card('rc_power', fmt(d.P_mW, 3), 'mW', '', '');
+
+  if (d.target !== 'temp') {
+    html += card('rc_op_temp', fmt(d.T_op, 1), '°C',
+      `${t('rc_op_temp_sub')} ${fmt(d.ambientTemp, 0)} °C ${t('rc_op_temp_plus')} ${fmt(d.tempRise, 1)} °C`, '');
+  }
+
+  if (!d.isVia) {
+    html += card('rc_cu_thick', fmt(d.thickness * 1.378, 3), 'mil', `${d.thickness} oz/ft²`, '');
+  } else {
+    html += card('rc_plating', fmt(d.viaPlating * 25.4, 1), 'µm', `${d.viaPlating} mil`, '');
+  }
+
+  grid.innerHTML = html;
+}
+
+function fmt(v, dec) {
+  if (!isFinite(v) || isNaN(v)) return '—';
+  return v.toFixed(dec);
+}
+
+// ============================================================
+// 歷史紀錄
+// ============================================================
+function getLayerLabel(l) { return t('layer_' + l); }
+function getTargetLabel(tg) {
+  const m = { current: 'tgt_cur_h', width: 'tgt_wid_h', temp: 'tgt_tmp_h' };
+  return t(m[tg]);
+}
+const LAYER_TAG  = { internal: 'tag-int', external: 'tag-ext', via: 'tag-via' };
+const TARGET_TAG = { current: 'tag-cur', width: 'tag-wid', temp: 'tag-tmp' };
+
+function saveHistory() {
+  if (!currentResult) return;
+  const d = currentResult;
+  historySeq++;
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+  let mainVal = '';
+  if (d.target === 'current') mainVal = `${t('h_main_cur')} = ${fmt(d.current, 3)} A`;
+  else if (d.target === 'width') mainVal = `${t('h_main_wid')} = ${fmt(d.width, 2)} mil`;
+  else mainVal = `${t('h_main_tmp')} = ${fmt(d.tempRise, 2)} °C`;
+
+  historyData.push({ seq: historySeq, time: timeStr, layer: d.layer, target: d.target, mainVal, data: { ...d } });
+  renderHistory();
+}
+
+function deleteHistory(seq) {
+  historyData = historyData.filter(e => e.seq !== seq);
+  renderHistory();
+}
+
+function clearHistory() {
+  if (historyData.length === 0) return;
+  if (!confirm(t('confirm_clear'))) return;
+  historyData = [];
+  renderHistory();
+}
+
+function renderHistory() {
+  const list  = document.getElementById('history_list');
+  const count = document.getElementById('hist_count');
+  count.textContent = `${historyData.length} ${t('hist_count_unit')}`;
+
+  if (historyData.length === 0) {
+    list.innerHTML = `<div class="history-empty">
+      ${t('hist_empty')}<br>
+      <span style="font-size:0.7rem">${t('hist_empty_sub')}</span>
+    </div>`;
+    return;
+  }
+
+  const items = [...historyData].reverse().map(e => {
+    const d = e.data;
+    let params = '';
+    if (!d.isVia) {
+      params = `${t('h_ambient')} ${fmt(d.ambientTemp,0)}°C | ${t('h_dt')} ${fmt(d.tempRise,1)}°C | ${t('h_current')} ${fmt(d.current,2)}A<br>
+                ${t('h_width')} ${fmt(d.width,1)} mil | ${t('h_thickness')} ${d.thickness} oz/ft² | ${t('h_length')} ${d.lengthMil} mil<br>
+                R=${fmt(d.R_mohm,2)}mΩ | V=${fmt(d.V_mV,2)}mV | P=${fmt(d.P_mW,2)}mW`;
+    } else {
+      params = `${t('h_ambient')} ${fmt(d.ambientTemp,0)}°C | ${t('h_dt')} ${fmt(d.tempRise,1)}°C | ${t('h_current')} ${fmt(d.current,2)}A<br>
+                ${t('h_via_d')} ${fmt(d.width,1)} mil | ${t('h_via_plating')} ${d.viaPlating} mil | ${t('h_via_count')} ${d.viaCount}<br>
+                R=${fmt(d.R_mohm,2)}mΩ | V=${fmt(d.V_mV,2)}mV | P=${fmt(d.P_mW,2)}mW`;
+    }
+    return `<div class="history-item">
+      <button class="hi-del" onclick="deleteHistory(${e.seq})" title="Delete">✕</button>
+      <div class="hi-header">
+        <span class="hi-seq-num">#${e.seq}</span>
+        <span class="hi-tag ${LAYER_TAG[e.layer]}">${getLayerLabel(e.layer)}</span>
+        <span class="hi-tag ${TARGET_TAG[e.target]}">${getTargetLabel(e.target)}</span>
+        <span class="hi-time">${e.time}</span>
+      </div>
+      <div class="hi-target">${e.mainVal}</div>
+      <div class="hi-params">${params}</div>
+    </div>`;
+  }).join('');
+
+  list.innerHTML = items;
+}
+
+// ============================================================
+// 匯出 Excel（CSV）
+// ============================================================
+function exportExcel() {
+  if (historyData.length === 0) { alert(t('alert_empty')); return; }
+
+  const BOM = '\uFEFF';
+  const headers = [
+    '序號/Seq', '時間/Time', '計算對象/Layer', '計算目標/Target',
+    '環境溫度/Ambient(°C)', '允許溫升/ΔT(°C)', '電流/Current(A)',
+    '銅厚/Cu Thickness(oz/ft²)', '線寬孔徑/Width or Dia(mil)', '導體長度/Length(mil)',
+    '孔壁鍍銅/Via Plating(mil)', '並聯Via數/Parallel Vias',
+    '截面積/Area(mil²)', '電阻/Resistance(mΩ)', '壓降/V-drop(mV)', '損耗/Power(mW)',
+    '工作溫度/Op Temp(°C)', '主要結果/Main Result'
+  ];
+
+  const rows = historyData.map(e => {
+    const d = e.data;
+    return [
+      e.seq, e.time,
+      getLayerLabel(e.layer), getTargetLabel(e.target),
+      fmt(d.ambientTemp, 1), fmt(d.tempRise, 2), fmt(d.current, 3),
+      d.isVia ? '' : d.thickness,
+      fmt(d.width, 3), d.lengthMil,
+      d.isVia ? d.viaPlating : '', d.isVia ? d.viaCount : '',
+      fmt(d.areaSingle, 3), fmt(d.R_mohm, 3), fmt(d.V_mV, 3), fmt(d.P_mW, 3),
+      fmt(d.T_op, 1), e.mainVal
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+  });
+
+  const csv = BOM + [headers.map(h => `"${h}"`).join(','), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const now  = new Date();
+  const ds   = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  a.href = url; a.download = `PCB_IPC2221_History_${ds}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+updateUI();
+calculate();
+applyI18n();
+</script>
+</body>
+</html>
