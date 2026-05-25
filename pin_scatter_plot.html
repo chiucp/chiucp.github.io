@@ -1,0 +1,1739 @@
+<!DOCTYPE html>
+<!-- Version: V1.42 | Date: 2026-05-23 | chiucp w/ manus -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pin Scatter Plot Viewer</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.27.1/plotly.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #1a1d2e; color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    /* ── Top Bar ── */
+    #top-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px; background: #1e2135;
+      border-bottom: 1px solid #2d3158; position: sticky; top: 0; z-index: 50;
+    }
+    #top-bar h1 { font-size: 1.3rem; font-weight: 700; color: #a8c8ff; letter-spacing: 0.04em; }
+    #top-bar-right { display: flex; align-items: center; gap: 10px; }
+    #version-tag { font-size: 0.72rem; color: #8890b8; font-family: monospace; }
+
+    /* ── Language Toggle ── */
+    #lang-bar { display: flex; gap: 4px; }
+    .lang-btn {
+      padding: 5px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 700;
+      cursor: pointer; border: 1px solid #4a5080; background: #1e2135; color: #7a80a0;
+      transition: all 0.15s;
+    }
+    .lang-btn.active { background: #4a7cff; color: #fff; border-color: #4a7cff; }
+
+    /* ── Main Layout: Left + Right ── */
+    #main-layout {
+      display: flex; height: calc(100vh - 53px); overflow: hidden;
+    }
+
+    /* ── Left Panel ── */
+    #left-panel {
+      width: 500px; min-width: 500px; max-width: 500px;
+      background: #1e2135; border-right: 1px solid #2d3158;
+      display: flex; flex-direction: column;
+      overflow-y: auto; flex-shrink: 0;
+    }
+    #left-panel::-webkit-scrollbar { width: 5px; }
+    #left-panel::-webkit-scrollbar-thumb { background: #3a3f60; border-radius: 3px; }
+
+    /* ── Right Panel ── */
+    #right-panel {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; min-width: 0;
+    }
+
+    /* ── Section Headers ── */
+    .panel-section {
+      border-bottom: 1px solid #2d3158; padding: 14px 16px;
+    }
+    .panel-section:last-child { border-bottom: none; }
+    .section-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #8890b8; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .section-title-label { color: #7ab8ff; }
+
+    /* ── Tab Bar ── */
+    .tab-bar {
+      display: flex; border-radius: 7px; overflow: hidden;
+      border: 1px solid #3a3f60; margin-bottom: 10px;
+    }
+    .tab-btn {
+      flex: 1; padding: 8px 0; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; border: none; background: #1a1d2e; color: #9aa8c8;
+      transition: background 0.18s, color 0.18s;
+    }
+    .tab-btn.active { background: #252840; color: #a8c8ff; border-bottom: 2px solid #4a7cff; }
+    .tab-btn:hover:not(.active) { background: #252840; color: #c0c8e8; }
+
+    /* ── Input Panels ── */
+    .input-panel { display: none; }
+    .input-panel.active { display: block; }
+
+    /* ── Title Warning Banner ── */
+    #title-warning {
+      background: #3a2800; border: 1px solid #cc7722; border-radius: 6px;
+      padding: 8px 12px; margin-bottom: 10px; font-size: 0.8rem;
+      color: #ffb347; display: flex; align-items: flex-start; gap: 8px; line-height: 1.5;
+    }
+    #title-warning .warn-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+
+    #upload-drop {
+      border: 2px dashed #4a5080; border-radius: 8px; padding: 16px;
+      text-align: center; transition: border-color 0.2s, background 0.2s;
+    }
+    #upload-drop.dragover { border-color: #6ea8fe; background: #2d3158; }
+    #upload-drop p { font-size: 0.82rem; color: #b0b8d8; margin-bottom: 10px; }
+    #file-input { display: none; }
+
+    #paste-hint { font-size: 0.8rem; color: #b0b8d8; margin-bottom: 8px; line-height: 1.5; }
+    #paste-hint code { background: #1a1d2e; border-radius: 4px; padding: 1px 5px; font-size: 0.78rem; color: #7ab8ff; }
+    #paste-textarea {
+      width: 100%; height: 140px; background: #1a1d2e; border: 1px solid #4a5080;
+      border-radius: 7px; color: #e0e0e0; font-family: 'Consolas','Courier New',monospace;
+      font-size: 0.78rem; padding: 8px 10px; resize: vertical; outline: none;
+      transition: border-color 0.18s; line-height: 1.5;
+    }
+    #paste-textarea:focus { border-color: #4a7cff; }
+    #paste-textarea::placeholder { color: #6a70a0; }
+    .paste-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+    #preview-wrap {
+      margin-top: 10px; max-height: 120px; overflow: auto;
+      border-radius: 6px; border: 1px solid #3a3f60; display: none;
+    }
+    #preview-wrap table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    #preview-wrap th { background: #2d3158; color: #a8c8ff; padding: 4px 8px; text-align: left; position: sticky; top: 0; white-space: nowrap; }
+    #preview-wrap td { padding: 3px 8px; border-top: 1px solid #2d3158; color: #c0c8e8; white-space: nowrap; }
+    #preview-wrap tr:nth-child(even) td { background: #1e2135; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-block; padding: 7px 16px; border-radius: 6px;
+      font-size: 0.82rem; font-weight: 600; cursor: pointer; border: none;
+      transition: background 0.18s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: #4a7cff; color: #fff; }
+    .btn-primary:hover { background: #6a96ff; }
+    .btn-secondary { background: #3a3f60; color: #c0c8e8; }
+    .btn-secondary:hover { background: #4a5080; }
+    .btn-success { background: #22aa55; color: #fff; }
+    .btn-success:hover { background: #33cc66; }
+    .btn-warn { background: #cc7722; color: #fff; }
+    .btn-warn:hover { background: #ee9933; }
+    .btn-sm { padding: 5px 12px; font-size: 0.78rem; }
+    .btn-full { width: 100%; text-align: center; margin-top: 6px; }
+
+    /* ── Settings Fields ── */
+    .field-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 6px; gap: 6px;
+    }
+    .field-row:last-child { margin-bottom: 0; }
+    .field-label { font-size: 0.78rem; color: #b0b8d8; white-space: nowrap; min-width: 60px; }
+    .field-input {
+      background: #252840; border: 1px solid #4a5080; border-radius: 5px;
+      color: #e0e0e0; padding: 4px 7px; font-size: 0.78rem;
+      width: 100%; max-width: 100px; outline: none; transition: border-color 0.15s;
+    }
+    .field-input:focus { border-color: #4a7cff; }
+    .field-input::placeholder { color: #6a70a0; }
+    select.field-input { cursor: pointer; }
+    .field-input-wide { max-width: 140px; }
+
+    .toggle-row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    }
+    .toggle-check { width: 14px; height: 14px; cursor: pointer; accent-color: #4a7cff; flex-shrink: 0; }
+    .toggle-label { font-size: 0.82rem; font-weight: 600; color: #7ab8ff; cursor: pointer; }
+
+    .shape-row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .shape-opt {
+      flex: 1; text-align: center; padding: 5px 0; border-radius: 5px;
+      font-size: 0.78rem; cursor: pointer; border: 1px solid #4a5080;
+      color: #b0b8d8; background: #252840; transition: all 0.15s; user-select: none;
+    }
+    .shape-opt.selected { border-color: #4a7cff; background: #2d3158; color: #a8c8ff; font-weight: 600; }
+
+    .corner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
+    .corner-opt {
+      text-align: center; padding: 5px 4px; border-radius: 5px;
+      font-size: 0.74rem; cursor: pointer; border: 1px solid #4a5080;
+      color: #b0b8d8; background: #252840; transition: all 0.15s; user-select: none;
+    }
+    .corner-opt.selected { border-color: #4a7cff; background: #2d3158; color: #a8c8ff; font-weight: 600; }
+
+    /* ── Color Manager ── */
+    #color-manager { display: none; }
+    #color-rows { display: flex; flex-direction: column; gap: 5px; }
+    .color-row {
+      display: flex; align-items: center; gap: 8px; padding: 4px 6px;
+      background: #252840; border-radius: 5px; border: 1px solid #2d3158;
+    }
+    .color-swatch {
+      width: 20px; height: 20px; border-radius: 4px; border: 1px solid #4a5080;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .color-type-name { font-size: 0.8rem; color: #c0c8e8; flex: 1; font-family: monospace; }
+    .color-hex-input {
+      width: 72px; background: #1a1d2e; border: 1px solid #4a5080; border-radius: 4px;
+      color: #e0e0e0; padding: 2px 5px; font-size: 0.74rem; font-family: monospace;
+      outline: none;
+    }
+    .color-hex-input:focus { border-color: #4a7cff; }
+    #color-manager-note { font-size: 0.72rem; color: #8890b8; margin-top: 6px; line-height: 1.4; }
+
+    /* ── Draw Buttons ── */
+    #draw-btn-wrap {
+      padding: 12px 16px; background: #1a1d2e;
+      border-top: 1px solid #2d3158;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    #draw-btn-row { display: flex; gap: 8px; }
+    #export-btn-row { display: flex; gap: 8px; }
+
+    /* ── Info Box ── */
+    #info-box {
+      background: #1e2135; border-bottom: 1px solid #2d3158;
+      padding: 10px 16px; display: none;
+      font-size: 0.8rem; color: #c0c8e8; line-height: 1.7;
+    }
+    #info-box .info-row { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+    #info-box .info-item { display: flex; align-items: center; gap: 5px; }
+    #info-box .info-label { color: #7ab8ff; font-weight: 600; font-size: 0.76rem; white-space: nowrap; }
+    #info-box .info-val { color: #e0e0e0; font-family: 'Consolas', monospace; font-size: 0.78rem; }
+    #info-box .info-highlight { color: #ffcc44; font-weight: 700; }
+    #info-box .info-sep { width: 100%; height: 1px; background: #2d3158; margin: 4px 0; }
+
+    /* ── Status ── */
+    #status {
+      font-size: 0.82rem; color: #7ab8ff; padding: 5px 16px;
+      min-height: 26px; background: #1a1d2e; border-bottom: 1px solid #2d3158;
+    }
+    #status.error { color: #ff7a7a; }
+    #status.warn  { color: #ffb347; }
+
+    /* ── Chart ── */
+    #chart-wrapper { flex: 1; overflow: hidden; padding: 8px; }
+    #chart { width: 100%; height: 100%; }
+
+    /* ── Modal ── */
+    #modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    #modal-overlay.active { display: flex; }
+    #modal {
+      background: #252840; border-radius: 12px;
+      padding: 24px 28px; width: 440px; max-width: 95vw;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    }
+    #modal h2 { font-size: 1.05rem; color: #a8c8ff; margin-bottom: 4px; }
+    #modal .modal-sub { font-size: 0.8rem; color: #7a80a0; margin-bottom: 16px; }
+    .map-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 0.85rem; }
+    .map-row label { color: #c0c8e8; font-weight: 600; width: 130px; }
+    .map-row select { flex: 1; background: #1a1d2e; border: 1px solid #4a5080; border-radius: 6px; color: #e0e0e0; padding: 5px 8px; font-size: 0.82rem; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+    /* ── Color Modal ── */
+    #color-modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    #color-modal-overlay.active { display: flex; }
+    #color-modal {
+      background: #252840; border-radius: 12px;
+      padding: 24px 28px; width: 520px; max-width: 95vw; max-height: 80vh;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+      display: flex; flex-direction: column;
+    }
+    #color-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    #color-modal-header h2 { font-size: 1.05rem; color: #a8c8ff; }
+    #color-modal-close {
+      background: none; border: none; color: #7a80a0; font-size: 1.3rem;
+      cursor: pointer; padding: 2px 6px; border-radius: 4px;
+      transition: color 0.15s;
+    }
+    #color-modal-close:hover { color: #ff7a7a; }
+    #color-modal-sub { font-size: 0.78rem; color: #7a80a0; margin-bottom: 14px; }
+    #color-modal-rows {
+      overflow-y: auto; flex: 1;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+      padding-right: 4px;
+    }
+    .color-modal-row {
+      display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+      background: #1e2135; border-radius: 6px; border: 1px solid #2d3158;
+    }
+    .color-modal-swatch {
+      width: 24px; height: 24px; border-radius: 5px; border: 1px solid #4a5080;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .color-modal-name { font-size: 0.82rem; color: #c0c8e8; flex: 1; font-family: monospace; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .color-modal-hex {
+      width: 70px; background: #252840; border: 1px solid #4a5080; border-radius: 4px;
+      color: #e0e0e0; padding: 3px 5px; font-size: 0.74rem; font-family: monospace;
+      outline: none; flex-shrink: 0;
+    }
+    .color-modal-hex:focus { border-color: #4a7cff; }
+    #color-modal-actions {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 14px; padding-top: 12px; border-top: 1px solid #2d3158;
+    }
+    #color-modal-preview-badge {
+      display: flex; flex-wrap: wrap; gap: 4px; flex: 1; margin-right: 12px;
+    }
+    .type-badge {
+      padding: 2px 8px; border-radius: 10px; font-size: 0.72rem;
+      font-family: monospace; color: #fff; font-weight: 600;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1a1d2e; }
+    ::-webkit-scrollbar-thumb { background: #3a3f60; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #4a5080; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      #main-layout { flex-direction: column; height: auto; overflow: visible; }
+      #left-panel { width: 100%; max-width: 100%; resize: none; border-right: none; border-bottom: 1px solid #2d3158; }
+      #right-panel { height: 600px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div id="top-bar">
+  <h1 data-i18n="title">Pin Scatter Plot Viewer</h1>
+  <div id="top-bar-right">
+    <span id="version-tag">V1.42 | 2026-05-23 | chiucp w/ manus</span>
+    <div id="lang-bar">
+      <button class="lang-btn active" id="lang-en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="lang-zh" onclick="setLang('zh')">繁中</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div id="main-layout">
+
+  <!-- ═══ LEFT PANEL ═══ -->
+  <div id="left-panel">
+
+    <!-- Section: Data Input -->
+    <div class="panel-section">
+      <div class="section-title"><span class="section-title-label" data-i18n="section_input">Data Input</span></div>
+
+      <!-- Tab Bar -->
+      <div class="tab-bar">
+        <button class="tab-btn" id="tab-upload" onclick="switchTab('upload')" data-i18n="tab_upload">Upload Excel / CSV</button>
+        <button class="tab-btn active" id="tab-paste" onclick="switchTab('paste')" data-i18n="tab_paste">Paste Text Data</button>
+      </div>
+
+      <!-- Panel: Upload -->
+      <div class="input-panel" id="panel-upload">
+        <div id="title-warning-upload" class="title-warning-box" style="background:#3a2800;border:1px solid #cc7722;border-radius:6px;padding:7px 10px;margin-bottom:8px;font-size:0.78rem;color:#ffb347;display:flex;align-items:flex-start;gap:6px;line-height:1.5;">
+          <span>⚠</span>
+          <span data-i18n="title_warning_upload">File must contain a <strong>header row</strong> with column names (e.g. X, Y, Pad Name, Type).</span>
+        </div>
+        <div id="upload-drop">
+          <p data-i18n="upload_hint">Drag & drop Excel file here, or click to select<br/>
+             <small>Supports .xlsx / .xls / .csv; must contain <strong>X</strong>, <strong>Y</strong> columns</small></p>
+          <input type="file" id="file-input" accept=".xlsx,.xls,.csv" />
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('file-input').click()" data-i18n="btn_select_file">Select File</button>
+          <button class="btn btn-secondary btn-sm" style="margin-left:6px" id="demo-btn" data-i18n="btn_demo">Load Demo Data</button>
+        </div>
+      </div>
+
+      <!-- Panel: Paste -->
+      <div class="input-panel active" id="panel-paste">
+        <div id="title-warning" class="title-warning-box" style="background:#3a2800;border:1px solid #cc7722;border-radius:6px;padding:7px 10px;margin-bottom:8px;font-size:0.78rem;color:#ffb347;display:flex;align-items:flex-start;gap:6px;line-height:1.5;">
+          <span>⚠</span>
+          <span data-i18n="title_warning">The <strong>first row must be a header row</strong> with column names (e.g. No., X(um), Y(um), Pad Name, Type). Column order is flexible — you can map them manually after parsing.</span>
+        </div>
+        <p id="paste-hint" data-i18n="paste_hint">
+          Copy table from Excel and paste below. First row = header.
+        </p>
+        <textarea id="paste-textarea" data-i18n-placeholder="paste_placeholder"></textarea>
+        <div class="paste-actions">
+          <button class="btn btn-primary btn-sm" id="parse-paste-btn" data-i18n="btn_parse">Parse &amp; Plot</button>
+          <button class="btn btn-secondary btn-sm" id="clear-paste-btn" data-i18n="btn_clear">Clear</button>
+          <span id="paste-row-count" style="font-size:0.76rem;color:#7a80a0;"></span>
+        </div>
+        <div id="preview-wrap"><table id="preview-table"></table></div>
+      </div>
+    </div>
+
+    <!-- Section: Pad Shape -->
+    <div class="panel-section">
+      <div class="section-title"><span class="section-title-label" data-i18n="pad_shape_title">Pad Shape &amp; Size</span></div>
+      <div class="shape-row">
+        <div class="shape-opt selected" id="shape-circle" onclick="selectShape('circle')" data-i18n="shape_circle">● Circle</div>
+        <div class="shape-opt" id="shape-rect" onclick="selectShape('rect')" data-i18n="shape_rect">■ Rect</div>
+      </div>
+      <div id="circle-size-row" class="field-row">
+        <span class="field-label" data-i18n="diameter">Diameter (um)</span>
+        <input type="number" class="field-input" id="marker-size" value="80" min="1" step="any" />
+      </div>
+      <div id="rect-size-rows" style="display:none">
+        <div class="field-row">
+          <span class="field-label" data-i18n="width_x">Width X (um)</span>
+          <input type="number" class="field-input" id="rect-w" value="80" min="1" step="any" />
+        </div>
+        <div class="field-row">
+          <span class="field-label" data-i18n="height_y">Height Y (um)</span>
+          <input type="number" class="field-input" id="rect-h" value="60" min="1" step="any" />
+        </div>
+      </div>
+      <div style="font-size:0.7rem;color:#5a6090;margin-top:4px;" data-i18n="pad_unit_note">Unit: um, auto-scaled to display size</div>
+    </div>
+
+    <!-- Section: Die Border -->
+    <div class="panel-section">
+      <div class="toggle-row">
+        <input type="checkbox" class="toggle-check" id="show-die-border" checked />
+        <span class="toggle-label" data-i18n="die_border_title">Die Border (solid)</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;">
+        <div>
+          <div style="font-size:0.7rem;color:#a0a8c8;margin-bottom:3px;" data-i18n="x_min">X Min</div>
+          <input type="number" class="field-input" style="max-width:100%;width:100%;" id="die-x1" data-i18n-placeholder="auto" step="any" />
+        </div>
+        <div>
+          <div style="font-size:0.7rem;color:#a0a8c8;margin-bottom:3px;" data-i18n="x_max">X Max</div>
+          <input type="number" class="field-input" style="max-width:100%;width:100%;" id="die-x2" data-i18n-placeholder="auto" step="any" />
+        </div>
+        <div>
+          <div style="font-size:0.7rem;color:#a0a8c8;margin-bottom:3px;" data-i18n="y_min">Y Min</div>
+          <input type="number" class="field-input" style="max-width:100%;width:100%;" id="die-y1" data-i18n-placeholder="auto" step="any" />
+        </div>
+        <div>
+          <div style="font-size:0.7rem;color:#a0a8c8;margin-bottom:3px;" data-i18n="y_max">Y Max</div>
+          <input type="number" class="field-input" style="max-width:100%;width:100%;" id="die-y2" data-i18n-placeholder="auto" step="any" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: LED Area -->
+    <div class="panel-section">
+      <div class="toggle-row">
+        <input type="checkbox" class="toggle-check" id="show-led-area" />
+        <span class="toggle-label" data-i18n="led_area_title">LED Area (dashed)</span>
+      </div>
+      <div style="font-size:0.72rem;color:#a0a8c8;margin-bottom:6px;" data-i18n="led_area_note">Offset from Die Center</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div>
+          <div style="font-size:0.7rem;color:#a0a8c8;margin-bottom:3px;">Shift X</div>
+          <input type="number" class="field-input" style="max-width:100%;width:100%;" id="led-shift-x" placeholder="0" step="any" value="0" />
+        </div>
+        <div>
+          <div style="font-size:0.7rem;color:#a0a8c8;margin-bottom:3px;">Shift Y</div>
+          <input type="number" class="field-input" style="max-width:100%;width:100%;" id="led-shift-y" placeholder="0" step="any" value="0" />
+        </div>
+        <div>
+          <div style="font-size:0.7rem;color:#a0a8c8;margin-bottom:3px;" data-i18n="area_x">Area X</div>
+          <input type="number" class="field-input" style="max-width:100%;width:100%;" id="led-area-x" data-i18n-placeholder="width" step="any" />
+        </div>
+        <div>
+          <div style="font-size:0.7rem;color:#a0a8c8;margin-bottom:3px;" data-i18n="area_y">Area Y</div>
+          <input type="number" class="field-input" style="max-width:100%;width:100%;" id="led-area-y" data-i18n-placeholder="height" step="any" />
+        </div>
+      </div>
+      <div style="font-size:0.7rem;color:#8890b8;margin-top:6px;line-height:1.4;" data-i18n="led_area_formula">Range: Center±(Area/2)+Shift</div>
+    </div>
+
+    <!-- Section: Display Options -->
+    <div class="panel-section">
+      <div class="section-title"><span class="section-title-label" data-i18n="display_options">Display Options</span></div>
+      <div class="toggle-row" style="margin-bottom:4px;">
+        <input type="checkbox" class="toggle-check" id="show-gap-labels" checked />
+        <span class="toggle-label" style="font-size:0.8rem;" data-i18n="gap_labels_title">Border Gap Labels</span>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" class="toggle-check" id="show-pixel" checked />
+        <span class="toggle-label" style="font-size:0.8rem;" data-i18n="pixel_title">Pixel 0,0 Position</span>
+      </div>
+      <div style="font-size:0.72rem;color:#5a6090;margin-bottom:6px;margin-left:22px;" data-i18n="pixel_note">Corner of LED Area (or Die Border if no LED Area)</div>
+      <div class="corner-grid">
+        <div class="corner-opt selected" id="corner-LT" onclick="selectCorner('LT')" data-i18n="corner_lt">↖ LT (Top-Left)</div>
+        <div class="corner-opt" id="corner-RT" onclick="selectCorner('RT')" data-i18n="corner_rt">↗ RT (Top-Right)</div>
+        <div class="corner-opt" id="corner-LB" onclick="selectCorner('LB')" data-i18n="corner_lb">↙ LB (Bot-Left)</div>
+        <div class="corner-opt" id="corner-RB" onclick="selectCorner('RB')" data-i18n="corner_rb">↘ RB (Bot-Right)</div>
+      </div>
+    </div>
+
+    <!-- Section: Type Color Manager -->
+    <div class="panel-section">
+      <div class="section-title">
+        <span class="section-title-label" data-i18n="color_manager_title">Pin Type Colors</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="btn btn-secondary btn-sm" id="open-color-modal-btn" data-i18n="btn_open_color_modal">&#127912; Customize Colors...</button>
+        <span id="color-manager-empty" style="font-size:0.75rem;color:#5a6090;" data-i18n="color_manager_empty">Plot data first to configure colors.</span>
+      </div>
+      <!-- hidden color data store -->
+      <div id="color-rows" style="display:none;"></div>
+    </div>
+
+    <!-- Draw Buttons (sticky bottom) -->
+    <div id="draw-btn-wrap">
+      <div id="draw-btn-row">
+        <button class="btn btn-primary" style="flex:1" id="redraw-btn" data-i18n="btn_redraw">Redraw</button>
+      </div>
+      <div id="export-btn-row">
+        <button class="btn btn-success btn-sm" style="flex:1" id="export-png-btn" data-i18n="btn_export_png">⬇ Export PNG</button>
+        <button class="btn btn-warn btn-sm" style="flex:1" id="export-dxf-btn" data-i18n="btn_export_dxf">⬇ Export DXF</button>
+      </div>
+    </div>
+
+  </div><!-- /left-panel -->
+
+  <!-- ═══ RIGHT PANEL ═══ -->
+  <div id="right-panel">
+
+    <!-- Info Box -->
+    <div id="info-box">
+      <div class="info-row" id="info-content"></div>
+    </div>
+
+    <!-- Status -->
+    <div id="status"></div>
+
+    <!-- Chart -->
+    <div id="chart-wrapper">
+      <div id="chart"></div>
+    </div>
+
+  </div><!-- /right-panel -->
+
+</div><!-- /main-layout -->
+
+<!-- Column Mapping Modal -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h2 data-i18n="modal_title">Column Mapping</h2>
+    <p class="modal-sub" data-i18n="modal_sub">Specify which column maps to each field (X and Y are required)</p>
+    <div class="map-row">
+      <label>X <span style="color:#ff7a7a">*</span></label>
+      <select id="col-x"></select>
+    </div>
+    <div class="map-row">
+      <label>Y <span style="color:#ff7a7a">*</span></label>
+      <select id="col-y"></select>
+    </div>
+    <div class="map-row">
+      <label>pin_name</label>
+      <select id="col-name"></select>
+    </div>
+    <div class="map-row">
+      <label>pin_number</label>
+      <select id="col-number"></select>
+    </div>
+    <div class="map-row">
+      <label>pin_Type</label>
+      <select id="col-type"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modal-cancel" data-i18n="btn_cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-confirm" data-i18n="btn_confirm_plot">Confirm &amp; Plot</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Color Manager Modal -->
+<div id="color-modal-overlay">
+  <div id="color-modal">
+    <div id="color-modal-header">
+      <h2 data-i18n="color_manager_title">Pin Type Colors</h2>
+      <button id="color-modal-close" title="Close">&times;</button>
+    </div>
+    <div id="color-modal-sub" data-i18n="color_manager_note">Click the color swatch or edit the hex value. Changes take effect on next Redraw.</div>
+    <div id="color-modal-rows"></div>
+    <div id="color-modal-actions">
+      <div id="color-modal-preview-badge"></div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="btn btn-secondary btn-sm" id="color-modal-reset" data-i18n="btn_reset_colors">Reset Defaults</button>
+        <button class="btn btn-primary btn-sm" id="color-modal-apply" data-i18n="btn_apply_redraw">Apply &amp; Redraw</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     JavaScript
+════════════════════════════════════════════ -->
+<script>
+// ─── i18n ─────────────────────────────────────
+const I18N = {
+  en: {
+    title: 'Pin Scatter Plot Viewer',
+    section_input: 'Data Input',
+    tab_upload: 'Upload Excel / CSV',
+    tab_paste: 'Paste Text Data',
+    title_warning: 'The <strong>first row must be a header row</strong> with column names (e.g. No., X(um), Y(um), Pad Name, Type). Column order is flexible — you can map them manually after parsing.',
+    title_warning_upload: 'File must contain a <strong>header row</strong> with column names (e.g. X, Y, Pad Name, Type).',
+    upload_hint: 'Drag & drop Excel file here, or click to select<br/><small>Supports .xlsx / .xls / .csv; must contain <strong>X</strong>, <strong>Y</strong> columns</small>',
+    btn_select_file: 'Select File',
+    btn_demo: 'Load Demo Data',
+    paste_hint: 'Copy table from Excel and paste below. First row = header.',
+    paste_placeholder: 'Paste Excel data here (with header row)\n\nExample:\nNo.\tX(um)\tY(um)\tPad Name\tType\n1\t245\t4745\tVDDFUSE\tPwr',
+    btn_parse: 'Parse & Plot',
+    btn_clear: 'Clear',
+    pad_shape_title: 'Pad Shape & Size',
+    shape_circle: '● Circle',
+    shape_rect: '■ Rect',
+    diameter: 'Diameter (um)',
+    width_x: 'Width X (um)',
+    height_y: 'Height Y (um)',
+    pad_unit_note: 'Unit: um, auto-scaled to display size',
+    die_border_title: 'Die Border (solid)',
+    x_min: 'X Min', x_max: 'X Max', y_min: 'Y Min', y_max: 'Y Max',
+    auto: 'Auto',
+    led_area_title: 'LED Area (dashed)',
+    led_area_note: 'Offset from Die Center',
+    width: 'Width', height: 'Height',
+    led_area_formula: 'Range: Center±(Area/2)+Shift',
+    display_options: 'Display Options',
+    gap_labels_title: 'Border Gap Labels',
+    pixel_title: 'Pixel 0,0 Position',
+    pixel_note: 'Corner of LED Area (or Die Border if no LED Area)',
+    corner_lt: '↖ LT (Top-Left)', corner_rt: '↗ RT (Top-Right)',
+    corner_lb: '↙ LB (Bot-Left)', corner_rb: '↘ RB (Bot-Right)',
+    color_manager_title: 'Pin Type Colors',
+    color_manager_note_short: '(auto-updated after plot)',
+    color_manager_note: 'Click the color swatch or edit the hex value to customize each type\'s color. Changes take effect on next Redraw.',
+    color_manager_empty: 'Plot data first to configure colors.',
+    btn_open_color_modal: '\uD83C\uDFA8 Customize Colors...',
+    btn_reset_colors: 'Reset Defaults',
+    btn_apply_redraw: 'Apply & Redraw',
+    btn_redraw: 'Redraw',
+    btn_export_png: '⬇ Export PNG',
+    btn_export_dxf: '⬇ Export DXF',
+    modal_title: 'Column Mapping',
+    modal_sub: 'Specify which column maps to each field (X and Y are required)',
+    btn_cancel: 'Cancel',
+    btn_confirm_plot: 'Confirm & Plot',
+    info_pin_count: 'Pin Count',
+    info_type_count: 'Types',
+    info_min_pitch: 'Min Pitch',
+    info_die_size: 'Die Size',
+    info_die_center: 'Die Center',
+    info_led_size: 'LED Size',
+    info_led_center: 'LED Center',
+    info_center_offset: 'Center Offset',
+    info_pixel: 'Pixel 0,0',
+    status_no_data: 'Please load data first',
+    status_no_mapping: 'Please complete column mapping first',
+    status_no_valid: 'No valid X/Y numeric data. Check column mapping.',
+    status_drawn: (n, t, x1, x2, y1, y2) => `Plotted ${n} pins, ${t} types | Die: X[${x1}, ${x2}] Y[${y1}, ${y2}]`,
+    status_demo_loaded: n => `Demo data loaded (${n} pins)`,
+    status_parsed: n => `Parsed ${n} rows. Please confirm column mapping.`,
+    status_no_paste: 'Please paste data first',
+    status_no_header: 'Cannot find header row',
+    status_no_rows: 'No valid data rows after parsing',
+    status_file_empty: 'File has no data rows',
+    status_file_error: msg => 'Parse error: ' + msg,
+    status_reading: 'Reading file…',
+    die_top_label: 'Die Top',
+    die_right_label: 'Die Right',
+    die_center_label: 'Die Center',
+    led_center_label: 'LED Center',
+    png_info_title: 'Pin Scatter Plot — Summary',
+  },
+  zh: {
+    title: 'Pin 散布圖檢視器',
+    section_input: '資料輸入',
+    tab_upload: '上傳 Excel / CSV',
+    tab_paste: '貼上文字資料',
+    title_warning: '<strong>第一列必須是標題列</strong>，包含欄位名稱（例如：No.、X(um)、Y(um)、Pad Name、Type）。欄位順序不限，貼上後可在欄位對應視窗手動指定。',
+    title_warning_upload: '檔案必須包含<strong>標題列</strong>，含有欄位名稱（例如：X、Y、Pad Name、Type）。',
+    upload_hint: '拖曳 Excel 檔案至此，或點擊按鈕選擇檔案<br/><small>支援 .xlsx / .xls / .csv；欄位需包含 <strong>X</strong>、<strong>Y</strong>（必填）</small>',
+    btn_select_file: '選擇檔案',
+    btn_demo: '載入範例資料',
+    paste_hint: '直接從 Excel 複製表格後貼入下方。第一列 = 標題列。',
+    paste_placeholder: '在此貼上從 Excel 複製的資料（含標題列）\n\n例如：\nNo.\tX(um)\tY(um)\tPad Name\tType\n1\t245\t4745\tVDDFUSE\tPwr',
+    btn_parse: '解析並繪圖',
+    btn_clear: '清除',
+    pad_shape_title: 'Pad 形狀與大小',
+    shape_circle: '● 圓形',
+    shape_rect: '■ 矩形',
+    diameter: '直徑 (um)',
+    width_x: '寬 X (um)',
+    height_y: '高 Y (um)',
+    pad_unit_note: '單位 um，依比例自動換算顯示大小',
+    die_border_title: 'Die 邊框（實線）',
+    x_min: 'X 最小', x_max: 'X 最大', y_min: 'Y 最小', y_max: 'Y 最大',
+    auto: '自動',
+    led_area_title: 'LED Area（虛線框）',
+    led_area_note: '以 Die Center 為基準偏移',
+    width: '寬度', height: '高度',
+    led_area_formula: '框範圍：Center±(Area/2)+Shift',
+    display_options: '顯示選項',
+    gap_labels_title: '邊框間距標示',
+    pixel_title: 'Pixel 0,0 位置',
+    pixel_note: '選擇 LED Area 邊框的角落（未設定 LED Area 時以 Die 邊框為準）',
+    corner_lt: '↖ LT（左上）', corner_rt: '↗ RT（右上）',
+    corner_lb: '↙ LB（左下）', corner_rb: '↘ RB（右下）',
+    color_manager_title: 'Pin Type 顏色設定',
+    color_manager_note_short: '（繪圖後自動更新）',
+    color_manager_note: '點擊色塊或直接編輯 Hex 色碼來自訂每種 Type 的顏色，下次重新繪圖時生效。',
+    color_manager_empty: '請先繪製資料以設定顏色。',
+    btn_open_color_modal: '\uD83C\uDFA8 自訂顏色...',
+    btn_reset_colors: '還原預設',
+    btn_apply_redraw: '套用並重繪',
+    btn_redraw: '重新繪圖',
+    btn_export_png: '⬇ 輸出 PNG',
+    btn_export_dxf: '⬇ 輸出 DXF',
+    modal_title: '欄位對應設定',
+    modal_sub: '請指定各欄位對應的資料行（X、Y 為必填）',
+    btn_cancel: '取消',
+    btn_confirm_plot: '確認並繪圖',
+    info_pin_count: 'Pin 總數',
+    info_type_count: 'Type 種類',
+    info_min_pitch: 'Min Pitch',
+    info_die_size: 'Die 尺寸',
+    info_die_center: 'Die Center',
+    info_led_size: 'LED 尺寸',
+    info_led_center: 'LED Center',
+    info_center_offset: 'Center 差異量',
+    info_pixel: 'Pixel 0,0',
+    status_no_data: '請先載入資料',
+    status_no_mapping: '請先完成欄位對應',
+    status_no_valid: '沒有有效的 X/Y 數值資料，請確認欄位對應',
+    status_drawn: (n, t, x1, x2, y1, y2) => `已繪製 ${n} 個 pin，共 ${t} 種 Type｜Die: X[${x1}, ${x2}] Y[${y1}, ${y2}]`,
+    status_demo_loaded: n => `已載入範例資料（${n} 個 pin）`,
+    status_parsed: n => `已解析 ${n} 列資料，請確認欄位對應`,
+    status_no_paste: '請先貼上資料',
+    status_no_header: '無法找到標題列',
+    status_no_rows: '解析後無有效資料列',
+    status_file_empty: '檔案無資料列',
+    status_file_error: msg => '解析失敗：' + msg,
+    status_reading: '讀取檔案中…',
+    die_top_label: 'Die Top',
+    die_right_label: 'Die Right',
+    die_center_label: 'Die Center',
+    led_center_label: 'LED Center',
+    png_info_title: 'Pin 散布圖 — 摘要資訊',
+  }
+};
+
+let currentLang = 'en';
+function t(key, ...args) {
+  const v = I18N[currentLang][key];
+  return typeof v === 'function' ? v(...args) : (v || key);
+}
+function setLang(lang) {
+  currentLang = lang;
+  document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+  document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
+  applyI18n();
+}
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = I18N[currentLang][key];
+    if (val !== undefined) {
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.value = val;
+      else el.innerHTML = val;
+    }
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    const val = I18N[currentLang][key];
+    if (val !== undefined) el.placeholder = val;
+  });
+  ['die-x1','die-x2','die-y1','die-y2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.placeholder = t('auto');
+  });
+  document.getElementById('led-area-x').placeholder = t('width');
+  document.getElementById('led-area-y').placeholder = t('height');
+}
+
+// ─── Default Type Colors ─────────────────────
+const DEFAULT_TYPE_COLORS = {
+  'Pwr':  '#4a7cff',
+  'I/O':  '#ff4444',
+  'In':   '#22cc66',
+  'Gnd':  '#cc44ff',
+  'Out':  '#ff9922',
+  'TBD':  '#00cccc',
+  'N/A':  '#ff66aa',
+  '_default': '#aaaaaa'
+};
+// User-customizable color map (starts as copy of defaults)
+let typeColorMap = Object.assign({}, DEFAULT_TYPE_COLORS);
+
+function getTypeColor(tk) {
+  return typeColorMap[tk] || typeColorMap['_default'] || '#aaaaaa';
+}
+
+// ─── Color Manager (Popup Modal) ──────────────────────────
+let _currentTypeKeys = [];
+
+function buildColorManager(typeKeys) {
+  _currentTypeKeys = typeKeys || [];
+  const emptyMsg = document.getElementById('color-manager-empty');
+  const openBtn  = document.getElementById('open-color-modal-btn');
+  if (!typeKeys || !typeKeys.length) {
+    emptyMsg.style.display = 'inline';
+    openBtn.style.display  = 'none';
+  } else {
+    emptyMsg.style.display = 'none';
+    openBtn.style.display  = 'inline-block';
+  }
+}
+
+function openColorModal() {
+  const overlay = document.getElementById('color-modal-overlay');
+  const rowsContainer = document.getElementById('color-modal-rows');
+  const previewBadge  = document.getElementById('color-modal-preview-badge');
+  rowsContainer.innerHTML = '';
+  previewBadge.innerHTML  = '';
+
+  if (!_currentTypeKeys.length) return;
+
+  _currentTypeKeys.forEach(tk => {
+    const color = getTypeColor(tk);
+    const displayName = tk === '_default' ? 'Unknown' : tk;
+
+    const row = document.createElement('div');
+    row.className = 'color-modal-row';
+    row.dataset.type = tk;
+
+    const swatch = document.createElement('input');
+    swatch.type = 'color';
+    swatch.className = 'color-modal-swatch';
+    swatch.value = color;
+    swatch.title = displayName;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'color-modal-name';
+    nameSpan.textContent = displayName;
+    nameSpan.title = displayName;
+
+    const hexInput = document.createElement('input');
+    hexInput.type = 'text';
+    hexInput.className = 'color-modal-hex';
+    hexInput.value = color;
+    hexInput.maxLength = 7;
+
+    swatch.addEventListener('input', e => {
+      typeColorMap[tk] = e.target.value;
+      hexInput.value = e.target.value;
+      updatePreviewBadge(previewBadge);
+    });
+    hexInput.addEventListener('input', e => {
+      const v = e.target.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+        typeColorMap[tk] = v;
+        swatch.value = v;
+        updatePreviewBadge(previewBadge);
+      }
+    });
+
+    row.appendChild(swatch);
+    row.appendChild(nameSpan);
+    row.appendChild(hexInput);
+    rowsContainer.appendChild(row);
+  });
+
+  updatePreviewBadge(previewBadge);
+  overlay.classList.add('active');
+}
+
+function updatePreviewBadge(container) {
+  container.innerHTML = '';
+  _currentTypeKeys.forEach(tk => {
+    const badge = document.createElement('span');
+    badge.className = 'type-badge';
+    badge.textContent = tk === '_default' ? '?' : tk;
+    badge.style.background = getTypeColor(tk);
+    container.appendChild(badge);
+  });
+}
+
+function closeColorModal() {
+  document.getElementById('color-modal-overlay').classList.remove('active');
+}
+
+
+// ─── State ───────────────────────────────────
+let rawData    = [];
+let colMapping = {};
+let headers    = [];
+let padShape   = 'circle';
+let pixelCorner = 'LT';
+let lastChartParams = null;
+
+// ─── Tab ─────────────────────────────────────
+function switchTab(tab) {
+  ['upload','paste'].forEach(t2 => {
+    document.getElementById('tab-' + t2).classList.toggle('active', t2 === tab);
+    document.getElementById('panel-' + t2).classList.toggle('active', t2 === tab);
+  });
+}
+
+// ─── Shape Toggle ─────────────────────────────
+function selectShape(s) {
+  padShape = s;
+  document.getElementById('shape-circle').classList.toggle('selected', s === 'circle');
+  document.getElementById('shape-rect').classList.toggle('selected', s === 'rect');
+  document.getElementById('circle-size-row').style.display  = s === 'circle' ? '' : 'none';
+  document.getElementById('rect-size-rows').style.display   = s === 'rect'   ? '' : 'none';
+}
+
+// ─── Corner Toggle ───────────────────────────
+function selectCorner(c) {
+  pixelCorner = c;
+  ['LT','RT','LB','RB'].forEach(k => {
+    document.getElementById('corner-' + k).classList.toggle('selected', k === c);
+  });
+}
+
+// ─── Upload ───────────────────────────────────
+const dropZone = document.getElementById('upload-drop');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+document.getElementById('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+function handleFile(file) {
+  setStatus(t('status_reading'));
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const wb   = XLSX.read(evt.target.result, { type: 'array' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!json.length) { setStatus(t('status_file_empty'), true); return; }
+      rawData = json; headers = Object.keys(json[0]);
+      openMappingModal();
+    } catch(err) { setStatus(t('status_file_error', err.message), true); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── Paste ────────────────────────────────────
+document.getElementById('parse-paste-btn').addEventListener('click', parsePasteData);
+document.getElementById('clear-paste-btn').addEventListener('click', () => {
+  document.getElementById('paste-textarea').value = '';
+  document.getElementById('paste-row-count').textContent = '';
+  document.getElementById('preview-wrap').style.display = 'none';
+});
+document.getElementById('paste-textarea').addEventListener('input', () => {
+  const lines = document.getElementById('paste-textarea').value.trim().split('\n').filter(l => l.trim());
+  const n = lines.length > 1 ? lines.length - 1 : 0;
+  document.getElementById('paste-row-count').textContent = n > 0 ? (currentLang === 'zh' ? `偵測到 ${n} 列資料` : `Detected ${n} rows`) : '';
+});
+
+function parsePasteData() {
+  const text = document.getElementById('paste-textarea').value.trim();
+  if (!text) { setStatus(t('status_no_paste'), true); return; }
+  const result = parseTabText(text);
+  if (!result) return;
+  rawData = result.data; headers = result.headers;
+  showPreviewTable(headers, rawData.slice(0, 5));
+  openMappingModal();
+}
+
+function parseTabText(text) {
+  const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
+  let headerLineIdx = -1;
+  for (let i = 0; i < lines.length; i++) { if (lines[i].trim()) { headerLineIdx = i; break; } }
+  if (headerLineIdx < 0) { setStatus(t('status_no_header'), true); return null; }
+  const headerLine = lines[headerLineIdx];
+  const useTabs = headerLine.includes('\t');
+  function splitLine(line) {
+    return useTabs ? line.split('\t').map(c => c.trim())
+                   : line.split(/\s{2,}/).map(c => c.trim());
+  }
+  const rawHeaders = splitLine(headerLine);
+  const seen = {};
+  const hdrs = rawHeaders.map(h => {
+    const key = h || '(empty)';
+    seen[key] = (seen[key] || 0) + 1;
+    return seen[key] > 1 ? `${key}_${seen[key]}` : key;
+  });
+  const dataRows = [];
+  for (let i = headerLineIdx + 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = splitLine(lines[i]);
+    const obj = {};
+    hdrs.forEach((h, idx) => { obj[h] = cols[idx] !== undefined ? cols[idx] : ''; });
+    if (Object.values(obj).some(v => v !== '')) dataRows.push(obj);
+  }
+  if (!dataRows.length) { setStatus(t('status_no_rows'), true); return null; }
+  setStatus(t('status_parsed', dataRows.length));
+  return { headers: hdrs, data: dataRows };
+}
+
+function showPreviewTable(hdrs, rows) {
+  const wrap = document.getElementById('preview-wrap');
+  const table = document.getElementById('preview-table');
+  let html = '<thead><tr>' + hdrs.map(h => `<th>${esc(h)}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach(row => {
+    html += '<tr>' + hdrs.map(h => `<td>${esc(String(row[h] ?? ''))}</td>`).join('') + '</tr>';
+  });
+  table.innerHTML = html + '</tbody>';
+  wrap.style.display = 'block';
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ─── Smart Column Guessing ────────────────────
+// Expanded keyword lists for auto-detection
+function guessCol(candidates) {
+  // Exact match first (case-insensitive)
+  for (const c of candidates) {
+    const found = headers.find(h => h.trim().toLowerCase() === c.toLowerCase());
+    if (found) return found;
+  }
+  // Partial match (contains keyword)
+  for (const c of candidates) {
+    const found = headers.find(h => h.trim().toLowerCase().includes(c.toLowerCase()));
+    if (found) return found;
+  }
+  return '';
+}
+
+function guessXCol() {
+  // Priority: exact x/X, then coordinate-x patterns, then contains x
+  return guessCol([
+    'x', 'X', 'x(um)', 'X(um)', 'x_um', 'X_um',
+    'x_coord', 'X_coord', 'x_coordinate', 'X_coordinate',
+    'coordinate_x', 'Coordinate_X', 'coord_x', 'Coord_X',
+    'pos_x', 'Pos_X', 'position_x', 'Position_X',
+    'x pos', 'X Pos', 'x position', 'X Position',
+    'x coordinate', 'X Coordinate'
+  ]);
+}
+
+function guessYCol() {
+  return guessCol([
+    'y', 'Y', 'y(um)', 'Y(um)', 'y_um', 'Y_um',
+    'y_coord', 'Y_coord', 'y_coordinate', 'Y_coordinate',
+    'coordinate_y', 'Coordinate_Y', 'coord_y', 'Coord_Y',
+    'pos_y', 'Pos_Y', 'position_y', 'Position_Y',
+    'y pos', 'Y Pos', 'y position', 'Y Position',
+    'y coordinate', 'Y Coordinate'
+  ]);
+}
+
+function guessNameCol() {
+  return guessCol([
+    'pin_name', 'pinname', 'name', 'Name',
+    'pad name', 'Pad Name', 'pad_name', 'PadName',
+    'signal', 'Signal', 'net', 'Net',
+    'label', 'Label', 'description'
+  ]);
+}
+
+function guessNumberCol() {
+  // pin_number, no., pad#, pad num, pad number, number, index
+  return guessCol([
+    'pin_number', 'pin_num', 'pinnumber', 'pinnum',
+    'no.', 'No.', 'no', 'No', 'NO', 'NO.',
+    'pad#', 'Pad#', 'PAD#',
+    'pad num', 'Pad Num', 'PAD NUM',
+    'pad number', 'Pad Number', 'PAD NUMBER',
+    'pad_num', 'Pad_Num', 'pad_number', 'Pad_Number',
+    'number', 'Number', 'NUMBER',
+    'index', 'Index', 'INDEX',
+    '#', 'seq', 'Seq', 'id', 'ID'
+  ]);
+}
+
+function guessTypeCol() {
+  return guessCol([
+    'pin_Type', 'pin_type', 'pintype', 'PinType',
+    'type', 'Type', 'TYPE',
+    'pin type', 'Pin Type', 'PIN TYPE',
+    'signal_type', 'Signal_Type',
+    'io_type', 'IO_Type', 'direction', 'Direction'
+  ]);
+}
+
+// ─── Modal ────────────────────────────────────
+function openMappingModal() {
+  const xGuess      = guessXCol();
+  const yGuess      = guessYCol();
+  const nameGuess   = guessNameCol();
+  const numberGuess = guessNumberCol();
+  const typeGuess   = guessTypeCol();
+
+  const defaults = {
+    'col-x':      xGuess,
+    'col-y':      yGuess,
+    'col-name':   nameGuess,
+    'col-number': numberGuess,
+    'col-type':   typeGuess
+  };
+
+  const selIds = ['col-x','col-y','col-name','col-number','col-type'];
+  selIds.forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    if (id !== 'col-x' && id !== 'col-y') {
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = currentLang === 'zh' ? '（不使用）' : '(none)';
+      sel.appendChild(opt);
+    }
+    headers.forEach(h => {
+      const opt = document.createElement('option');
+      opt.value = h; opt.textContent = h;
+      if (defaults[id] === h) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    if ((id === 'col-x' || id === 'col-y') && !defaults[id] && headers.length)
+      sel.value = headers[id === 'col-x' ? 0 : Math.min(1, headers.length - 1)];
+  });
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+document.getElementById('modal-cancel').addEventListener('click', () =>
+  document.getElementById('modal-overlay').classList.remove('active'));
+document.getElementById('modal-confirm').addEventListener('click', () => {
+  const xCol = document.getElementById('col-x').value;
+  const yCol = document.getElementById('col-y').value;
+  if (!xCol || !yCol) { alert('X and Y columns are required!'); return; }
+  colMapping = { x: xCol, y: yCol,
+    name:   document.getElementById('col-name').value,
+    number: document.getElementById('col-number').value,
+    type:   document.getElementById('col-type').value };
+  document.getElementById('modal-overlay').classList.remove('active');
+  drawChart();
+});
+
+// ─── Demo ─────────────────────────────────────
+document.getElementById('demo-btn').addEventListener('click', () => {
+  rawData    = generateDemoData();
+  headers    = Object.keys(rawData[0]);
+  colMapping = { x: 'X', y: 'Y', name: 'pin_name', number: 'pin_number', type: 'pin_Type' };
+  drawChart();
+  setStatus(t('status_demo_loaded', rawData.length));
+});
+function generateDemoData() {
+  const types = ['Pwr','I/O','In','Gnd','Out','TBD','N/A'];
+  const rows = [];
+  for (let i = -2600; i <= 2200; i += 80)
+    rows.push({ X: -3200, Y: i, pin_name: 'L_PIN_' + rows.length, pin_number: rows.length + 1, pin_Type: types[rows.length % types.length] });
+  for (let i = -2600; i <= 2200; i += 80)
+    rows.push({ X: 3100,  Y: i, pin_name: 'R_PIN_' + rows.length, pin_number: rows.length + 1, pin_Type: types[rows.length % types.length] });
+  return rows;
+}
+
+// ─── Redraw ───────────────────────────────────
+document.getElementById('redraw-btn').addEventListener('click', () => {
+  if (!rawData.length) { setStatus(t('status_no_data'), true); return; }
+  if (!colMapping.x)   { setStatus(t('status_no_mapping'), true); return; }
+  drawChart();
+});
+
+// ─── Helper: read number input ────────────────
+function numVal(id) {
+  const v = parseFloat(document.getElementById(id).value);
+  return isNaN(v) ? null : v;
+}
+
+// ─── Min Pitch Calculator (Euclidean center-to-center) ───────
+function calcMinPitch(xs, ys) {
+  const n = xs.length;
+  if (n < 2) return null;
+  const pts = xs.map((x, i) => ({ x, y: ys[i] }));
+  pts.sort((a, b) => a.x - b.x);
+  let best = Infinity;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const dx = pts[j].x - pts[i].x;
+      if (dx >= best) break;
+      const dy = pts[j].y - pts[i].y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 0 && d < best) best = d;
+    }
+  }
+  return isFinite(best) ? best : null;
+}
+
+// ─── Main Draw ────────────────────────────────
+function drawChart() {
+  if (!rawData.length || !colMapping.x || !colMapping.y) return;
+
+  const showDieBorder  = document.getElementById('show-die-border').checked;
+  const showLedArea    = document.getElementById('show-led-area').checked;
+  const showPixel      = document.getElementById('show-pixel').checked;
+  const showGapLabels  = document.getElementById('show-gap-labels').checked;
+
+  const dieX1u = numVal('die-x1'), dieX2u = numVal('die-x2');
+  const dieY1u = numVal('die-y1'), dieY2u = numVal('die-y2');
+
+  const ledShiftX = numVal('led-shift-x') ?? 0;
+  const ledShiftY = numVal('led-shift-y') ?? 0;
+  const ledAreaX  = numVal('led-area-x');
+  const ledAreaY  = numVal('led-area-y');
+
+  const markerSizeUm = parseFloat(document.getElementById('marker-size').value) || 80;
+  const rectWUm = parseFloat(document.getElementById('rect-w').value) || 80;
+  const rectHUm = parseFloat(document.getElementById('rect-h').value) || 60;
+
+  const groups = {};
+  const noType = '_default';
+  const allX = [], allY = [];
+  const allPoints = [];
+
+  rawData.forEach(row => {
+    const xv = parseFloat(String(row[colMapping.x]).replace(/,/g,''));
+    const yv = parseFloat(String(row[colMapping.y]).replace(/,/g,''));
+    if (isNaN(xv) || isNaN(yv)) return;
+    allX.push(xv); allY.push(yv);
+    const tk = colMapping.type ? (String(row[colMapping.type]).trim() || noType) : noType;
+    if (!groups[tk]) groups[tk] = { x: [], y: [], text: [] };
+    groups[tk].x.push(xv); groups[tk].y.push(yv);
+    let tip = `<b>X:</b> ${xv}<br><b>Y:</b> ${yv}`;
+    if (colMapping.name   && row[colMapping.name]   !== '') tip += `<br><b>Name:</b> ${row[colMapping.name]}`;
+    if (colMapping.number && row[colMapping.number] !== '') tip += `<br><b>Number:</b> ${row[colMapping.number]}`;
+    if (colMapping.type   && row[colMapping.type]   !== '') tip += `<br><b>Type:</b> ${row[colMapping.type]}`;
+    groups[tk].text.push(tip);
+    allPoints.push({
+      x: xv, y: yv, type: tk,
+      name: colMapping.name ? String(row[colMapping.name] ?? '') : '',
+      number: colMapping.number ? String(row[colMapping.number] ?? '') : ''
+    });
+  });
+
+  if (!allX.length) { setStatus(t('status_no_valid'), true); return; }
+
+  // Die bounds
+  const xMin = Math.min(...allX), xMax = Math.max(...allX);
+  const yMin = Math.min(...allY), yMax = Math.max(...allY);
+  const xPad = Math.max((xMax - xMin) * 0.12, 200);
+  const yPad = Math.max((yMax - yMin) * 0.12, 200);
+  const dx1 = dieX1u !== null ? dieX1u : xMin - xPad;
+  const dx2 = dieX2u !== null ? dieX2u : xMax + xPad;
+  const dy1 = dieY1u !== null ? dieY1u : yMin - yPad;
+  const dy2 = dieY2u !== null ? dieY2u : yMax + yPad;
+
+  const dieCX = (dx1 + dx2) / 2;
+  const dieCY = (dy1 + dy2) / 2;
+
+  // um → px
+  const chartPxWidth = 700, chartPxHeight = 500;
+  const umRangeX = dx2 - dx1, umRangeY = dy2 - dy1;
+  const pxPerUmX = umRangeX > 0 ? chartPxWidth  / umRangeX : 1;
+  const pxPerUmY = umRangeY > 0 ? chartPxHeight / umRangeY : 1;
+  const pxPerUm  = Math.min(pxPerUmX, pxPerUmY);
+  const markerSizePx = Math.max(2, Math.round(markerSizeUm * pxPerUm));
+  const rectWPx = Math.max(2, Math.round(rectWUm * pxPerUmX));
+  const rectHPx = Math.max(2, Math.round(rectHUm * pxPerUmY));
+
+  // Update color manager with current type keys
+  const typeKeys = Object.keys(groups);
+  buildColorManager(typeKeys);
+
+  const traces = [];
+
+  // Scatter traces — use typeColorMap for colors
+  Object.entries(groups).forEach(([tk, g]) => {
+    const color = getTypeColor(tk);
+    const label = tk === noType ? 'Unknown' : tk;
+    if (padShape === 'circle') {
+      traces.push({
+        type: 'scatter', mode: 'markers', name: label,
+        x: g.x, y: g.y, text: g.text,
+        hovertemplate: '%{text}<extra></extra>',
+        marker: { color, size: markerSizePx, opacity: 0.88, line: { width: 0.5, color: 'rgba(255,255,255,0.3)' } }
+      });
+    } else {
+      traces.push({
+        type: 'scatter', mode: 'markers', name: label,
+        x: g.x, y: g.y, text: g.text,
+        hovertemplate: '%{text}<extra></extra>',
+        marker: { symbol: 'square', color, opacity: 0.88, size: Math.sqrt(rectWPx * rectHPx), line: { width: 0.8, color: 'rgba(255,255,255,0.4)' } }
+      });
+    }
+  });
+
+  // LED Area
+  let ledX1 = null, ledX2 = null, ledY1 = null, ledY2 = null;
+  let ledCX = null, ledCY = null;
+  if (showLedArea && ledAreaX !== null && ledAreaY !== null) {
+    ledCX = dieCX + ledShiftX;
+    ledCY = dieCY + ledShiftY;
+    ledX1 = ledCX - ledAreaX / 2;
+    ledX2 = ledCX + ledAreaX / 2;
+    ledY1 = ledCY - ledAreaY / 2;
+    ledY2 = ledCY + ledAreaY / 2;
+  }
+
+  // Pixel 0,0
+  let pixelX, pixelY, pixelLabel;
+  const usePixelLed = showLedArea && ledX1 !== null;
+  const pxLeft  = usePixelLed ? ledX1 : dx1;
+  const pxRight = usePixelLed ? ledX2 : dx2;
+  const pxTop   = usePixelLed ? ledY2 : dy2;
+  const pxBot   = usePixelLed ? ledY1 : dy1;
+  const pxSrc   = usePixelLed ? 'LED' : 'Die';
+  if (pixelCorner === 'LT') { pixelX = pxLeft;  pixelY = pxTop; pixelLabel = `Pixel 0,0 (LT/${pxSrc})`; }
+  else if (pixelCorner === 'RT') { pixelX = pxRight; pixelY = pxTop; pixelLabel = `Pixel 0,0 (RT/${pxSrc})`; }
+  else if (pixelCorner === 'LB') { pixelX = pxLeft;  pixelY = pxBot; pixelLabel = `Pixel 0,0 (LB/${pxSrc})`; }
+  else { pixelX = pxRight; pixelY = pxBot; pixelLabel = `Pixel 0,0 (RB/${pxSrc})`; }
+
+  // LED Area trace
+  if (showLedArea && ledX1 !== null) {
+    traces.push({
+      type: 'scatter', mode: 'lines', name: 'LED Area',
+      x: [ledX1, ledX2, ledX2, ledX1, ledX1],
+      y: [ledY2, ledY2, ledY1, ledY1, ledY2],
+      line: { color: '#4a7cff', width: 2, dash: 'dash' },
+      hoverinfo: 'skip', showlegend: true
+    });
+  }
+
+  // Die Border trace
+  if (showDieBorder) {
+    traces.push({
+      type: 'scatter', mode: 'lines', name: 'Die Border',
+      x: [dx1, dx2, dx2, dx1, dx1],
+      y: [dy2, dy2, dy1, dy1, dy2],
+      line: { color: '#e0e0e0', width: 2.5 },
+      hoverinfo: 'skip', showlegend: false
+    });
+  }
+
+  // Die Center
+  const hasBothCenters = showLedArea && ledCX !== null;
+  traces.push({
+    type: 'scatter', mode: 'markers+text', name: t('die_center_label'),
+    x: [dieCX], y: [dieCY],
+    text: [t('die_center_label')],
+    textposition: hasBothCenters ? 'bottom right' : 'top right',
+    textfont: { color: '#ffcc44', size: 11 },
+    marker: { symbol: 'cross-thin', size: 18, color: '#ffcc44', line: { width: 1.5, color: '#ffcc44' } },
+    hovertemplate: `<b>${t('die_center_label')}</b><br>X: ${dieCX.toFixed(2)}<br>Y: ${dieCY.toFixed(2)}<extra></extra>`
+  });
+
+  // LED Center
+  if (showLedArea && ledCX !== null) {
+    traces.push({
+      type: 'scatter', mode: 'markers+text', name: t('led_center_label'),
+      x: [ledCX], y: [ledCY],
+      text: [t('led_center_label')],
+      textposition: 'top right',
+      textfont: { color: '#44ffcc', size: 11 },
+      marker: { symbol: 'cross-thin', size: 18, color: '#44ffcc', line: { width: 1.5, color: '#44ffcc' } },
+      hovertemplate: `<b>${t('led_center_label')}</b><br>X: ${ledCX.toFixed(2)}<br>Y: ${ledCY.toFixed(2)}<extra></extra>`
+    });
+  }
+
+  // Pixel 0,0
+  if (showPixel) {
+    traces.push({
+      type: 'scatter', mode: 'markers+text', name: pixelLabel,
+      x: [pixelX], y: [pixelY],
+      text: [pixelLabel], textposition: 'top right',
+      textfont: { color: '#a8c8ff', size: 11 },
+      marker: { symbol: 'circle', size: 10, color: '#ffffff', line: { width: 1.5, color: '#a8c8ff' } },
+      hovertemplate: `<b>${pixelLabel}</b><br>X: ${pixelX.toFixed(2)}<br>Y: ${pixelY.toFixed(2)}<extra></extra>`
+    });
+  }
+
+  // Gap annotations
+  const axXpad = (dx2 - dx1) * 0.05;
+  const axYpad = (dy2 - dy1) * 0.05;
+  const gapAnnotations = [];
+  if (showDieBorder && showLedArea && ledX1 !== null && showGapLabels) {
+    const gapLeft   = (ledX1 - dx1).toFixed(1);
+    const gapRight  = (dx2 - ledX2).toFixed(1);
+    const gapTop    = (dy2 - ledY2).toFixed(1);
+    const gapBottom = (ledY1 - dy1).toFixed(1);
+    const gapFont   = { color: '#ffcc44', size: 11 };
+    gapAnnotations.push({ x: (dx1 + dx2) / 2, y: (dy2 + ledY2) / 2, xref: 'x', yref: 'y', text: `${gapTop} um`, showarrow: false, font: gapFont, bgcolor: 'rgba(30,33,53,0.7)', borderpad: 2 });
+    gapAnnotations.push({ x: (dx1 + dx2) / 2, y: (ledY1 + dy1) / 2, xref: 'x', yref: 'y', text: `${gapBottom} um`, showarrow: false, font: gapFont, bgcolor: 'rgba(30,33,53,0.7)', borderpad: 2 });
+    gapAnnotations.push({ x: (dx1 + ledX1) / 2, y: (dy1 + dy2) / 2, xref: 'x', yref: 'y', text: `${gapLeft} um`, showarrow: false, font: gapFont, bgcolor: 'rgba(30,33,53,0.7)', borderpad: 2 });
+    gapAnnotations.push({ x: (ledX2 + dx2) / 2, y: (dy1 + dy2) / 2, xref: 'x', yref: 'y', text: `${gapRight} um`, showarrow: false, font: gapFont, bgcolor: 'rgba(30,33,53,0.7)', borderpad: 2 });
+  }
+
+  const layout = {
+    paper_bgcolor: '#1e2135', plot_bgcolor: '#1e2135',
+    autosize: true,
+    font: { color: '#c0c8e8', family: 'Segoe UI, Arial, sans-serif', size: 12 },
+    xaxis: {
+      title: { text: 'X (um)', font: { size: 13 } },
+      gridcolor: '#2d3158', zerolinecolor: '#4a5080', tickcolor: '#4a5080', linecolor: '#4a5080',
+      showgrid: true, zeroline: true,
+      range: showDieBorder ? [dx1 - axXpad, dx2 + axXpad] : undefined
+    },
+    yaxis: {
+      title: { text: 'Y (um)', font: { size: 13 } },
+      gridcolor: '#2d3158', zerolinecolor: '#4a5080', tickcolor: '#4a5080', linecolor: '#4a5080',
+      showgrid: true, zeroline: true,
+      range: showDieBorder ? [dy1 - axYpad, dy2 + axYpad] : undefined
+    },
+    legend: {
+      title: { text: 'Type', font: { size: 13 } },
+      bgcolor: 'rgba(30,33,53,0.85)', bordercolor: '#4a5080', borderwidth: 1,
+      font: { size: 12 }, x: 1.01, y: 1, xanchor: 'left', yanchor: 'top'
+    },
+    margin: { l: 60, r: 140, t: 40, b: 60 },
+    hovermode: 'closest',
+    annotations: [
+      { text: t('die_top_label'),   xref: 'paper', yref: 'paper', x: 0.5, y: 1.03, showarrow: false, font: { color: '#7ab8ff', size: 12 } },
+      { text: t('die_right_label'), xref: 'paper', yref: 'paper', x: 1.03, y: 0.5, showarrow: false, textangle: 90, font: { color: '#7ab8ff', size: 12 } },
+      ...gapAnnotations
+    ]
+  };
+
+  Plotly.react('chart', traces, layout, {
+    responsive: true, displayModeBar: true,
+    modeBarButtonsToRemove: ['select2d','lasso2d'],
+    toImageButtonOptions: { format: 'png', filename: 'pin_scatter', scale: 2 }
+  });
+  // Force resize to fill container
+  setTimeout(() => { try { Plotly.Plots.resize('chart'); } catch(e){} }, 50);
+
+  // Min pitch & info
+  const minPitch = calcMinPitch(allX, allY);
+  let offsetStr = '—';
+  if (showLedArea && ledCX !== null) {
+    const ddx = ledCX - dieCX;
+    const ddy = ledCY - dieCY;
+    const dist = Math.sqrt(ddx*ddx + ddy*ddy);
+    offsetStr = `ΔX = ${ddx.toFixed(2)}, ΔY = ${ddy.toFixed(2)}  (dist ${dist.toFixed(2)})`;
+  }
+
+  const dieW = (dx2 - dx1).toFixed(2);
+  const dieH = (dy2 - dy1).toFixed(2);
+  const ledW = (showLedArea && ledX1 !== null) ? (ledX2 - ledX1).toFixed(2) : '—';
+  const ledH = (showLedArea && ledY1 !== null) ? (ledY2 - ledY1).toFixed(2) : '—';
+
+  document.getElementById('info-box').style.display = 'block';
+  document.getElementById('info-content').innerHTML = `
+    <div class="info-item"><span class="info-label">${t('info_pin_count')}</span><span class="info-val">${allX.length}</span></div>
+    <div class="info-item"><span class="info-label">${t('info_type_count')}</span><span class="info-val">${Object.keys(groups).length}</span></div>
+    <div class="info-item"><span class="info-label">${t('info_min_pitch')}</span><span class="info-val info-highlight">${minPitch !== null ? minPitch.toFixed(4) + ' um' : '—'}</span></div>
+    <div class="info-sep"></div>
+    <div class="info-item"><span class="info-label">${t('info_die_size')}</span><span class="info-val">${dieW} × ${dieH} um</span></div>
+    <div class="info-item"><span class="info-label">${t('info_die_center')}</span><span class="info-val">(${dieCX.toFixed(2)}, ${dieCY.toFixed(2)})</span></div>
+    <div class="info-item"><span class="info-label">${t('info_led_size')}</span><span class="info-val">${ledW} × ${ledH} um</span></div>
+    <div class="info-item"><span class="info-label">${t('info_led_center')}</span><span class="info-val">${(showLedArea && ledCX !== null) ? `(${ledCX.toFixed(2)}, ${ledCY.toFixed(2)})` : '—'}</span></div>
+    <div class="info-sep"></div>
+    <div class="info-item"><span class="info-label">${t('info_center_offset')}</span><span class="info-val info-highlight">${offsetStr}</span></div>
+    <div class="info-item"><span class="info-label">${t('info_pixel')}</span><span class="info-val">${pixelCorner} → (${pixelX.toFixed(2)}, ${pixelY.toFixed(2)})</span></div>
+  `;
+
+  setStatus(t('status_drawn', allX.length, Object.keys(groups).length, dx1.toFixed(0), dx2.toFixed(0), dy1.toFixed(0), dy2.toFixed(0)));
+
+  lastChartParams = {
+    allPoints, groups, allX, allY,
+    dx1, dx2, dy1, dy2, dieCX, dieCY,
+    ledX1, ledX2, ledY1, ledY2, ledCX, ledCY,
+    showLedArea, showDieBorder, showPixel,
+    pixelX, pixelY, pixelLabel, pixelCorner,
+    minPitch, dieW, dieH, ledW, ledH,
+    markerSizeUm, rectWUm, rectHUm, padShape,
+    offsetStr
+  };
+}
+
+// ─── Export PNG (with info panel) ────────────────
+document.getElementById('export-png-btn').addEventListener('click', async () => {
+  if (!lastChartParams) { setStatus(t('status_no_data'), true); return; }
+  setStatus(currentLang === 'zh' ? '正在產生 PNG…' : 'Generating PNG…');
+  try {
+    const chartImg = await Plotly.toImage('chart', { format: 'png', width: 1200, height: 800, scale: 2 });
+    const p = lastChartParams;
+    const now = new Date().toLocaleString();
+    const infoLines = [
+      t('png_info_title'),
+      '─'.repeat(60),
+      `${t('info_pin_count')}: ${p.allX.length}    ${t('info_type_count')}: ${Object.keys(p.groups).length}    ${t('info_min_pitch')}: ${p.minPitch !== null ? p.minPitch.toFixed(4) + ' um' : '—'}`,
+      `${t('info_die_size')}: ${p.dieW} × ${p.dieH} um    ${t('info_die_center')}: (${p.dieCX.toFixed(2)}, ${p.dieCY.toFixed(2)})`,
+      `${t('info_led_size')}: ${p.ledW} × ${p.ledH} um    ${t('info_led_center')}: ${(p.showLedArea && p.ledCX !== null) ? `(${p.ledCX.toFixed(2)}, ${p.ledCY.toFixed(2)})` : '—'}`,
+      `${t('info_center_offset')}: ${p.offsetStr}`,
+      `${t('info_pixel')}: ${p.pixelCorner} → (${p.pixelX.toFixed(2)}, ${p.pixelY.toFixed(2)})`,
+      '─'.repeat(60),
+      `Generated: ${now}`,
+    ];
+    const canvas = document.createElement('canvas');
+    const W = 2400, infoH = 200;
+    canvas.width = W;
+    const chartImgEl = new Image();
+    await new Promise(res => { chartImgEl.onload = res; chartImgEl.src = chartImg; });
+    const chartH = Math.round(chartImgEl.height * W / chartImgEl.width);
+    canvas.height = chartH + infoH;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#1a1d2e'; ctx.fillRect(0, 0, W, canvas.height);
+    ctx.drawImage(chartImgEl, 0, 0, W, chartH);
+    ctx.fillStyle = '#1e2135'; ctx.fillRect(0, chartH, W, infoH);
+    ctx.fillStyle = '#2d3158'; ctx.fillRect(0, chartH, W, 2);
+    ctx.fillStyle = '#a8c8ff'; ctx.font = 'bold 28px Segoe UI, Arial, sans-serif';
+    ctx.fillText(infoLines[0], 40, chartH + 40);
+    ctx.fillStyle = '#4a5080'; ctx.font = '22px Consolas, monospace';
+    ctx.fillText(infoLines[1], 40, chartH + 68);
+    ctx.fillStyle = '#c0c8e8'; ctx.font = '22px Segoe UI, Arial, sans-serif';
+    let lineY = chartH + 96;
+    for (let i = 2; i < infoLines.length; i++) {
+      if (infoLines[i].startsWith('─')) { ctx.fillStyle = '#4a5080'; ctx.font = '18px Consolas, monospace'; }
+      else if (infoLines[i].startsWith('Generated')) { ctx.fillStyle = '#5a6090'; ctx.font = 'italic 20px Segoe UI, Arial, sans-serif'; }
+      else { ctx.fillStyle = '#c0c8e8'; ctx.font = '22px Segoe UI, Arial, sans-serif'; }
+      ctx.fillText(infoLines[i], 40, lineY); lineY += 26;
+    }
+    const link = document.createElement('a');
+    link.download = 'pin_scatter_plot.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    setStatus(currentLang === 'zh' ? 'PNG 已輸出' : 'PNG exported');
+  } catch(e) { setStatus('PNG export error: ' + e.message, true); }
+});
+
+// ─── Export DXF ──────────────────────────────────
+document.getElementById('export-dxf-btn').addEventListener('click', () => {
+  if (!lastChartParams) { setStatus(t('status_no_data'), true); return; }
+  setStatus(currentLang === 'zh' ? '正在產生 DXF…' : 'Generating DXF…');
+  try {
+    const dxf = buildDXF(lastChartParams);
+    const blob = new Blob([dxf], { type: 'application/dxf' });
+    const link = document.createElement('a');
+    link.download = 'pin_scatter_plot.dxf';
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+    setStatus(currentLang === 'zh' ? 'DXF 已輸出' : 'DXF exported');
+  } catch(e) { setStatus('DXF export error: ' + e.message, true); }
+});
+
+function buildDXF(p) {
+  const out = [];
+  function g(code, val) { out.push(String(code).padStart(3, ' ')); out.push(String(val)); }
+
+  g(0,'SECTION'); g(2,'HEADER');
+  g(9,'$ACADVER'); g(1,'AC1009');
+  g(9,'$INSUNITS'); g(70,4);
+  g(9,'$EXTMIN'); g(10, p.dx1 - 500); g(20, p.dy1 - 500);
+  g(9,'$EXTMAX'); g(10, p.dx2 + 500); g(20, p.dy2 + 500);
+  g(0,'ENDSEC');
+
+  g(0,'SECTION'); g(2,'TABLES');
+  g(0,'TABLE'); g(2,'LTYPE'); g(70,3);
+  g(0,'LTYPE'); g(2,'ByBlock'); g(70,0); g(3,''); g(72,65); g(73,0); g(40,0.0);
+  g(0,'LTYPE'); g(2,'ByLayer'); g(70,0); g(3,''); g(72,65); g(73,0); g(40,0.0);
+  g(0,'LTYPE'); g(2,'Continuous'); g(70,0); g(3,'Solid line'); g(72,65); g(73,0); g(40,0.0);
+  g(0,'ENDTAB');
+
+  const typeKeys = Object.keys(p.groups);
+  const padLayerColors = [1,2,3,4,5,6,30,40,50,140,150,160,170,180,190,200,210,220,230,240];
+  const allLayers = [
+    { name:'DIE_BORDER',   color:7,  lt:'Continuous' },
+    { name:'LED_AREA',     color:5,  lt:'Continuous' },
+    { name:'DIE_CENTER',   color:2,  lt:'Continuous' },
+    { name:'LED_CENTER',   color:3,  lt:'Continuous' },
+    { name:'PIXEL_ORIGIN', color:4,  lt:'Continuous' },
+    { name:'COORDINATES',  color:8,  lt:'Continuous' },
+    { name:'INFO_TEXT',    color:9,  lt:'Continuous' },
+  ];
+  typeKeys.forEach((tk, i) => {
+    const safeName = 'PAD_' + (tk === '_default' ? 'UNKNOWN' : tk.replace(/[^A-Za-z0-9_]/g,'_'));
+    allLayers.push({ name: safeName, color: padLayerColors[i % padLayerColors.length], lt:'Continuous' });
+  });
+
+  g(0,'TABLE'); g(2,'LAYER'); g(70, allLayers.length + 1);
+  g(0,'LAYER'); g(2,'0'); g(70,0); g(62,7); g(6,'Continuous');
+  allLayers.forEach(lyr => { g(0,'LAYER'); g(2,lyr.name); g(70,0); g(62,lyr.color); g(6,lyr.lt); });
+  g(0,'ENDTAB');
+  g(0,'ENDSEC');
+
+  g(0,'SECTION'); g(2,'BLOCKS');
+  g(0,'BLOCK'); g(8,'0'); g(2,'$Model_Space'); g(70,0); g(10,0); g(20,0); g(30,0); g(3,'$Model_Space'); g(1,'');
+  g(0,'ENDBLK'); g(8,'0');
+  g(0,'ENDSEC');
+
+  g(0,'SECTION'); g(2,'ENTITIES');
+
+  function addLine(layer, x1, y1, x2, y2) {
+    g(0,'LINE'); g(8,layer);
+    g(10,+x1.toFixed(6)); g(20,+y1.toFixed(6)); g(30,0);
+    g(11,+x2.toFixed(6)); g(21,+y2.toFixed(6)); g(31,0);
+  }
+  function addCircle(layer, cx, cy, r) {
+    g(0,'CIRCLE'); g(8,layer);
+    g(10,+cx.toFixed(6)); g(20,+cy.toFixed(6)); g(30,0);
+    g(40,+r.toFixed(6));
+  }
+  function addRect(layer, cx, cy, w, h) {
+    const x1=cx-w/2, x2=cx+w/2, y1=cy-h/2, y2=cy+h/2;
+    g(0,'POLYLINE'); g(8,layer); g(66,1); g(10,0); g(20,0); g(30,0); g(70,1);
+    g(0,'VERTEX'); g(8,layer); g(10,+x1.toFixed(6)); g(20,+y1.toFixed(6)); g(30,0); g(70,0);
+    g(0,'VERTEX'); g(8,layer); g(10,+x2.toFixed(6)); g(20,+y1.toFixed(6)); g(30,0); g(70,0);
+    g(0,'VERTEX'); g(8,layer); g(10,+x2.toFixed(6)); g(20,+y2.toFixed(6)); g(30,0); g(70,0);
+    g(0,'VERTEX'); g(8,layer); g(10,+x1.toFixed(6)); g(20,+y2.toFixed(6)); g(30,0); g(70,0);
+    g(0,'SEQEND'); g(8,layer);
+  }
+  function addPolyRect(layer, x1, y1, x2, y2) {
+    g(0,'POLYLINE'); g(8,layer); g(66,1); g(10,0); g(20,0); g(30,0); g(70,1);
+    g(0,'VERTEX'); g(8,layer); g(10,+x1.toFixed(6)); g(20,+y1.toFixed(6)); g(30,0); g(70,0);
+    g(0,'VERTEX'); g(8,layer); g(10,+x2.toFixed(6)); g(20,+y1.toFixed(6)); g(30,0); g(70,0);
+    g(0,'VERTEX'); g(8,layer); g(10,+x2.toFixed(6)); g(20,+y2.toFixed(6)); g(30,0); g(70,0);
+    g(0,'VERTEX'); g(8,layer); g(10,+x1.toFixed(6)); g(20,+y2.toFixed(6)); g(30,0); g(70,0);
+    g(0,'SEQEND'); g(8,layer);
+  }
+  function addText(layer, x, y, h, text) {
+    const safe = String(text).replace(/[\r\n]/g,' ');
+    g(0,'TEXT'); g(8,layer);
+    g(10,+x.toFixed(6)); g(20,+y.toFixed(6)); g(30,0);
+    g(40,+h.toFixed(6)); g(1,safe);
+  }
+  function addCross(layer, cx, cy, size) {
+    addLine(layer, cx-size, cy, cx+size, cy);
+    addLine(layer, cx, cy-size, cx, cy+size);
+  }
+  function addDashedPolyRect(layer, x1, y1, x2, y2) {
+    const perim = 2*((x2-x1)+(y2-y1));
+    const dashLen = Math.max(perim/80, 30);
+    const gapLen  = dashLen * 0.5;
+    function dashedSeg(ax, ay, bx, by) {
+      const dx=bx-ax, dy=by-ay;
+      const len=Math.sqrt(dx*dx+dy*dy);
+      const ux=dx/len, uy=dy/len;
+      let pos=0, draw=true;
+      while(pos < len-0.01) {
+        const segEnd = Math.min(pos + (draw ? dashLen : gapLen), len);
+        if(draw) addLine(layer, ax+ux*pos, ay+uy*pos, ax+ux*segEnd, ay+uy*segEnd);
+        pos = segEnd; draw = !draw;
+      }
+    }
+    dashedSeg(x1,y2, x2,y2); dashedSeg(x2,y2, x2,y1);
+    dashedSeg(x2,y1, x1,y1); dashedSeg(x1,y1, x1,y2);
+  }
+
+  const crossSize = Math.max((p.dx2 - p.dx1) * 0.015, 50);
+  const markerR   = (p.markerSizeUm || 40) / 2;
+  const infoH     = Math.max((p.dy2 - p.dy1) * 0.018, 30);
+
+  if (p.showDieBorder) addPolyRect('DIE_BORDER', p.dx1, p.dy1, p.dx2, p.dy2);
+  if (p.showLedArea && p.ledX1 != null) addDashedPolyRect('LED_AREA', p.ledX1, p.ledY1, p.ledX2, p.ledY2);
+
+  addCross('DIE_CENTER', p.dieCX, p.dieCY, crossSize);
+  addText('DIE_CENTER', p.dieCX + crossSize*1.2, p.dieCY - crossSize*0.5, crossSize*0.8,
+    'Die Center (' + p.dieCX.toFixed(2) + ',' + p.dieCY.toFixed(2) + ')');
+
+  if (p.showLedArea && p.ledCX != null) {
+    addCross('LED_CENTER', p.ledCX, p.ledCY, crossSize);
+    addText('LED_CENTER', p.ledCX + crossSize*1.2, p.ledCY + crossSize*0.8, crossSize*0.8,
+      'LED Center (' + p.ledCX.toFixed(2) + ',' + p.ledCY.toFixed(2) + ')');
+  }
+
+  if (p.showPixel) {
+    addCircle('PIXEL_ORIGIN', p.pixelX, p.pixelY, crossSize*0.6);
+    addText('PIXEL_ORIGIN', p.pixelX + crossSize*1.2, p.pixelY, crossSize*0.8,
+      'Pixel 0,0 (' + p.pixelX.toFixed(2) + ',' + p.pixelY.toFixed(2) + ')');
+  }
+
+  p.allPoints.forEach(pt => {
+    const layerName = 'PAD_' + ((!pt.type || pt.type==='_default') ? 'UNKNOWN' : pt.type.replace(/[^A-Za-z0-9_]/g,'_'));
+    if (p.padShape === 'rect') {
+      addRect(layerName, pt.x, pt.y, p.rectWUm || markerR*2, p.rectHUm || markerR*2);
+    } else {
+      addCircle(layerName, pt.x, pt.y, markerR);
+    }
+  });
+
+  p.allPoints.forEach(pt => {
+    const label = pt.name || pt.number || '';
+    if (label) addText('COORDINATES', pt.x + markerR*1.3, pt.y, markerR*0.9, label);
+  });
+
+  const infoX = p.dx1;
+  const infoY = p.dy1 - infoH * 2;
+  const now = new Date().toISOString().replace('T',' ').substring(0,19);
+  const pinCount = p.allPoints ? p.allPoints.length : 0;
+  const typeCount = Object.keys(p.groups).length;
+  const pitchStr = (p.minPitch != null) ? p.minPitch.toFixed(4) + ' um' : 'N/A';
+  const infoLines = [
+    'Pin Count: ' + pinCount + '  Types: ' + typeCount + '  Min Pitch: ' + pitchStr,
+    'Die: ' + Number(p.dieW||0).toFixed(2) + 'x' + Number(p.dieH||0).toFixed(2) + ' um  Center:(' + Number(p.dieCX||0).toFixed(2) + ',' + Number(p.dieCY||0).toFixed(2) + ')',
+    'LED: ' + Number(p.ledW||0).toFixed(2) + 'x' + Number(p.ledH||0).toFixed(2) + ' um  Center:' + ((p.showLedArea && p.ledCX!=null) ? '('+Number(p.ledCX).toFixed(2)+','+Number(p.ledCY).toFixed(2)+')' : 'N/A'),
+    'Pixel 0,0: ' + (p.pixelCorner||'') + ' = (' + Number(p.pixelX||0).toFixed(2) + ',' + Number(p.pixelY||0).toFixed(2) + ')',
+    'Generated: ' + now,
+  ];
+  infoLines.forEach((ln, i) => { addText('INFO_TEXT', infoX, infoY - i * infoH * 1.6, infoH, ln); });
+
+  g(0,'ENDSEC');
+  g(0,'EOF');
+  return out.join('\r\n') + '\r\n';
+}
+
+// ─── Utility ──────────────────────────────────
+function setStatus(msg, isError = false, isWarn = false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = isError ? 'error' : isWarn ? 'warn' : '';
+}
+
+// ─── Color Modal Events ─────────────────────────────────
+document.getElementById('open-color-modal-btn').addEventListener('click', openColorModal);
+document.getElementById('color-modal-close').addEventListener('click', closeColorModal);
+document.getElementById('color-modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('color-modal-overlay')) closeColorModal();
+});
+document.getElementById('color-modal-reset').addEventListener('click', () => {
+  typeColorMap = Object.assign({}, DEFAULT_TYPE_COLORS);
+  openColorModal(); // rebuild with reset colors
+});
+document.getElementById('color-modal-apply').addEventListener('click', () => {
+  closeColorModal();
+  if (lastChartParams) drawChart();
+});
+
+// ─── Init ─────────────────────────────────────
+applyI18n();
+Plotly.newPlot('chart', [], {
+  paper_bgcolor: '#1e2135', plot_bgcolor: '#1e2135',
+  autosize: true,
+  font: { color: '#c0c8e8' },
+  xaxis: { title: 'X (um)', gridcolor: '#2d3158', zerolinecolor: '#4a5080' },
+  yaxis: { title: 'Y (um)', gridcolor: '#2d3158', zerolinecolor: '#4a5080' },
+  margin: { l: 60, r: 140, t: 40, b: 60 },
+  annotations: [{ text: 'Upload Excel, paste data, or click "Load Demo Data"', xref: 'paper', yref: 'paper', x: 0.5, y: 0.5, showarrow: false, font: { color: '#7a80a0', size: 15 } }]
+}, { responsive: true, displayModeBar: false });
+
+// ─── ResizeObserver: auto-resize chart when container changes ───
+const chartWrapper = document.getElementById('chart-wrapper');
+if (window.ResizeObserver) {
+  const ro = new ResizeObserver(() => {
+    try { Plotly.Plots.resize('chart'); } catch(e) {}
+  });
+  ro.observe(chartWrapper);
+} else {
+  window.addEventListener('resize', () => {
+    try { Plotly.Plots.resize('chart'); } catch(e) {}
+  });
+}
+</script>
+</body>
+</html>
