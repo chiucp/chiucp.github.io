@@ -10,6 +10,9 @@ chiucp.github.io/netlist_viewer.html<br>
 <a href="http://chiucp.github.io/pcb_calculator_manus.html" target="_blank"> PCB 電流計算工具 </a><br>
 chiucp.github.io/pcb_calculator_manus.html<br>
 
+<a href="http://chiucp.github.io/pcb_ipc2221_calculator.html" target="_blank"> PCB 電流計算工具 pro </a><br>
+chiucp.github.io/pcb_ipc2221_calculator.html<br>
+
 <a href="http://chiucp.github.io/YTGOGO.html" target="_blank"> YT撥放器 @ CHPT </a><br>
 chiucp.github.io/YTGOGO.html<br>
 
