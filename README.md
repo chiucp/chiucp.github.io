@@ -26,4 +26,3 @@ chiucp.github.io/z-chun_reflash.html<br>
 chiucp.github.io/KingShot_Giftcode.html<br>
 
 
-<iframe src="https://calendar.google.com/calendar/embed?height=600&wkst=1&ctz=Asia%2FTaipei&showPrint=0&hl=zh_TW&src=Y2hjaHVucGluQG1ldGEuY29t&src=dnN1QG1ldGEuY29t&src=emgtdHcudGFpd2FuI2hvbGlkYXlAZ3JvdXAudi5jYWxlbmRhci5nb29nbGUuY29t&color=%23f4511e&color=%23795548&color=%23d50000" style="border:solid 1px #777" width="1200" height="600" frameborder="0" scrolling="no"></iframe>
