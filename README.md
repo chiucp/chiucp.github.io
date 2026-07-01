@@ -13,6 +13,13 @@ chiucp.github.io/pcb_calculator_manus.html<br>
 <a href="http://chiucp.github.io/pcb_ipc2221_calculator.html" target="_blank"> PCB 電流計算工具 pro </a><br>
 chiucp.github.io/pcb_ipc2221_calculator.html<br>
 
+<a href="https://chiucp.github.io/pin_scatter_plot.html" target="_blank"> die pattern </a><br>
+chiucp.github.io/pin_scatter_plot.html<br>
+
+<a href="https://chiucp.github.io/PCB_Layer_Estimator.html" target="_blank"> PCB層數預估工具 </a><br>
+chiucp.github.io/PCB_Layer_Estimator.html<br>
+
+
 <a href="http://chiucp.github.io/YTGOGO.html" target="_blank"> YT撥放器 @ CHPT </a><br>
 chiucp.github.io/YTGOGO.html<br>
 
@@ -24,5 +31,3 @@ chiucp.github.io/z-chun_reflash.html<br>
 
 <a href="http://chiucp.github.io/KingShot_Giftcode.html" target="_blank"> Kingshot 自動尋找&兌換裡包碼工具 </a><br>
 chiucp.github.io/KingShot_Giftcode.html<br>
-
-
