@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PCB 走線層數評估工具</title>
+  <!--
+    PCB Layer Stack-up Estimator
+    Version : V1.2
+    Date    : 2026-07-02
+    Author  : chiucp w/ Manus
+    Changes :
+      V1.0 - Initial release
+      V1.1 - Fix fanout formula: ring k = (N-2*(k-1))*4
+           - Multi-site only applies to IO & HS; Power = single-site
+           - Add single-layer channel cap: 250 (tester bottleneck)
+      V1.2 - One layer = one BGA ring (process capability limit)
+             Layer count determined by ring-by-ring assignment:
+             e.g. IO=100 → Ring1 takes 80, Ring2 takes 20 → 2 layers
+             (NOT ceil(100/total_fanout) anymore)
+  -->
+  <style>
+    :root {
+      --primary:   #1a4f8a;
+      --secondary: #2e7bcf;
+      --accent:    #e8a020;
+      --bg:        #f4f6fa;
+      --card:      #ffffff;
+      --border:    #d0d9e8;
+      --text:      #1e2a3a;
+      --muted:     #6b7a90;
+      --success:   #1e8a4a;
+      --warn:      #c05800;
+      --danger:    #b02020;
+      --radius:    8px;
+      --shadow:    0 2px 12px rgba(30,60,120,.10);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'Microsoft JhengHei', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: #fff;
+      padding: 18px 32px 14px;
+      display: flex;
+      align-items: flex-end;
+      gap: 20px;
+    }
+    header h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+    header .meta { font-size: 11px; opacity: .75; margin-bottom: 2px; }
+    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px 60px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width:780px){ .grid-2 { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 22px;
+    }
+    .card h2 {
+      font-size: 14px; font-weight: 700; color: var(--primary);
+      border-bottom: 2px solid var(--secondary);
+      padding-bottom: 6px; margin-bottom: 14px;
+      text-transform: uppercase; letter-spacing: .4px;
+    }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; margin-top: 10px; }
+    label:first-of-type { margin-top: 0; }
+    input[type=number], input[type=text], select {
+      width: 100%; padding: 7px 10px;
+      border: 1px solid var(--border); border-radius: 5px;
+      font-size: 13px; background: #f9fbff; color: var(--text); transition: border .2s;
+    }
+    input[type=number]:focus, input[type=text]:focus, select:focus {
+      outline: none; border-color: var(--secondary); background: #fff;
+    }
+    .radio-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+    .radio-group label {
+      display: flex; align-items: center; gap: 5px; cursor: pointer;
+      font-size: 13px; color: var(--text); background: #f0f4fb;
+      border: 1px solid var(--border); border-radius: 5px; padding: 5px 12px; margin: 0;
+      transition: background .15s, border .15s;
+    }
+    .radio-group input[type=radio] { accent-color: var(--secondary); }
+    .radio-group label:has(input:checked) {
+      background: #ddeeff; border-color: var(--secondary); color: var(--primary); font-weight: 600;
+    }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+    .checkbox-row input[type=checkbox] { accent-color: var(--secondary); width: 15px; height: 15px; }
+    .checkbox-row label { margin: 0; font-size: 13px; color: var(--text); cursor: pointer; }
+
+    /* Power Domain Table */
+    #power-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    #power-table th { background: var(--primary); color: #fff; padding: 6px 8px; font-size: 12px; text-align: left; }
+    #power-table td { padding: 5px 6px; border-bottom: 1px solid #e8eef8; vertical-align: middle; }
+    #power-table tr:last-child td { border-bottom: none; }
+    #power-table input[type=text], #power-table input[type=number] { padding: 4px 7px; font-size: 12px; }
+    .btn-add, .btn-del { border: none; border-radius: 4px; cursor: pointer; font-size: 12px; padding: 4px 10px; font-weight: 600; }
+    .btn-add { background: var(--secondary); color: #fff; margin-top: 8px; }
+    .btn-add:hover { background: var(--primary); }
+    .btn-del { background: #fde8e8; color: var(--danger); }
+    .btn-del:hover { background: #f5c0c0; }
+
+    /* Calculate Button */
+    .btn-calc {
+      display: block; width: 100%; margin: 22px 0 0;
+      padding: 13px; background: linear-gradient(90deg, var(--primary), var(--secondary));
+      color: #fff; font-size: 15px; font-weight: 700;
+      border: none; border-radius: var(--radius); cursor: pointer;
+      letter-spacing: .5px; transition: opacity .2s;
+    }
+    .btn-calc:hover { opacity: .88; }
+
+    /* Result Panel */
+    #result-panel { margin-top: 24px; display: none; }
+    .result-summary {
+      background: linear-gradient(135deg, #e8f0ff 0%, #f0f8ff 100%);
+      border: 2px solid var(--secondary); border-radius: var(--radius);
+      padding: 18px 24px; text-align: center;
+    }
+    .result-summary .label { font-size: 13px; color: var(--muted); }
+    .result-summary .value { font-size: 42px; font-weight: 800; color: var(--primary); line-height: 1.1; }
+    .result-summary .range { font-size: 16px; color: var(--secondary); font-weight: 600; margin-top: 4px; }
+    .breakdown-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+    .breakdown-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 14px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .breakdown-item .bi-label { font-size: 12px; color: var(--muted); }
+    .breakdown-item .bi-value { font-size: 20px; font-weight: 700; color: var(--primary); }
+    .breakdown-item.highlight { border-color: var(--accent); background: #fff9ee; }
+    .breakdown-item.highlight .bi-value { color: var(--warn); }
+    .breakdown-item.warn-cap { border-color: var(--danger); background: #fff0f0; }
+    .breakdown-item.warn-cap .bi-value { color: var(--danger); }
+
+    /* Fanout detail table */
+    .fanout-detail-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+    .fanout-detail-table th { background: #e8f0ff; color: var(--primary); padding: 4px 8px; text-align: left; }
+    .fanout-detail-table td { padding: 3px 8px; border-bottom: 1px solid #e8eef8; }
+    .fanout-detail-table tr.capped td { background: #fff0f0; color: var(--danger); }
+    .fanout-detail-table tr.overflow-row td { background: #fff8e0; color: var(--warn); }
+    #fanout-section { margin-top: 16px; display: none; }
+    #fanout-section h3 { font-size: 13px; color: var(--primary); margin-bottom: 8px; font-weight: 700; }
+    .fanout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media(max-width:600px){ .fanout-grid { grid-template-columns: 1fr; } }
+
+    /* Detail Log */
+    #detail-log {
+      background: #1a2030; color: #c8d8f0;
+      border-radius: var(--radius); padding: 14px 16px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 12px; line-height: 1.8;
+      max-height: 420px; overflow-y: auto;
+      margin-top: 16px; white-space: pre-wrap;
+    }
+    #detail-log .log-section { color: #7ec8e3; font-weight: 700; }
+    #detail-log .log-ok    { color: #7de8a0; }
+    #detail-log .log-warn  { color: #f0c060; }
+    #detail-log .log-cap   { color: #ff8888; font-weight: 700; }
+    #detail-log .log-total { color: #ffdd88; font-weight: 700; font-size: 13px; }
+
+    /* Stack-up Visual */
+    #stackup-visual { margin-top: 16px; }
+    #stackup-visual h3 { font-size: 13px; color: var(--primary); margin-bottom: 8px; font-weight: 700; }
+    .stackup-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .stackup-table th { background: var(--primary); color: #fff; padding: 6px 10px; text-align: left; }
+    .stackup-table td { padding: 5px 10px; border-bottom: 1px solid #e8eef8; }
+    .stackup-table tr:nth-child(even) td { background: #f4f8ff; }
+    .layer-type-sig  { background: #d4edff !important; color: #005a9e; font-weight: 600; }
+    .layer-type-hs   { background: #d4f0e0 !important; color: #006630; font-weight: 600; }
+    .layer-type-gnd  { background: #e8e8e8 !important; color: #333; font-weight: 600; }
+    .layer-type-pwr  { background: #fff0cc !important; color: #7a4000; font-weight: 600; }
+    .layer-type-top  { background: #ffe0f0 !important; color: #800040; font-weight: 600; }
+    .layer-type-upwr { background: #f0e8ff !important; color: #4a0080; font-weight: 600; }
+    .layer-type-psns { background: #fff8e0 !important; color: #6a5000; font-weight: 600; }
+
+    /* Warning banner */
+    .warn-banner {
+      background: #fff3cd; border: 1px solid #ffc107; border-radius: var(--radius);
+      padding: 10px 14px; margin-top: 12px; font-size: 12px; color: #7a5000; display: none;
+    }
+    .warn-banner.show { display: block; }
+    .overflow-banner {
+      background: #fff0e0; border: 1px solid #ff8c00; border-radius: var(--radius);
+      padding: 10px 14px; margin-top: 8px; font-size: 12px; color: #7a3000; display: none;
+    }
+    .overflow-banner.show { display: block; }
+
+    .version-tag {
+      text-align: right; font-size: 10px; color: var(--muted);
+      margin-top: 30px; padding-top: 8px; border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>PCB 走線層數評估工具</h1>
+    <div class="meta">PCB Layer Stack-up Estimator &nbsp;|&nbsp; V1.2 &nbsp;|&nbsp; 2026-07-02 &nbsp;|&nbsp; chiucp w/ Manus</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ===== Section 1: Device 參數 ===== -->
+  <div class="grid-2">
+    <div class="card">
+      <h2>Device 參數</h2>
+      <label>BGA Array（如 20x20）</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" id="bga-row" min="1" max="100" value="20" style="width:80px" />
+        <span style="font-size:16px;font-weight:700;color:var(--muted)">×</span>
+        <input type="number" id="bga-col" min="1" max="100" value="20" style="width:80px" />
+        <span style="font-size:12px;color:var(--muted)">(Row × Col)</span>
+      </div>
+      <label>Signal 數量（不含高速，單 site）</label>
+      <input type="number" id="sig-count" min="0" value="100" />
+      <label>高速訊號數量（單 site）</label>
+      <input type="number" id="hs-count" min="0" value="20" />
+    </div>
+
+    <div class="card">
+      <h2>Power Domain &amp; Current</h2>
+      <table id="power-table">
+        <thead>
+          <tr><th>Domain 名稱</th><th>電流 (A)</th><th></th></tr>
+        </thead>
+        <tbody id="power-tbody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addPowerRow()">＋ 新增 Power Domain</button>
+    </div>
+  </div>
+
+  <!-- ===== Section 2: 詳細參數 ===== -->
+  <div class="card" style="margin-top:20px;">
+    <h2>詳細參數</h2>
+    <div class="grid-2">
+      <div>
+        <label>SITE 數量（僅影響 IO 與高速訊號層；Power 以單 site 計算）</label>
+        <input type="number" id="site-count" min="1" value="1" />
+        <label>IO @BGA 排數（一般訊號佔用外圈排數）</label>
+        <input type="number" id="io-rows" min="1" max="50" value="4" />
+        <label>高速 @BGA 排數（高速訊號佔用外圈排數）</label>
+        <input type="number" id="hs-rows" min="1" max="50" value="2" />
+      </div>
+      <div>
+        <div class="checkbox-row" style="margin-top:0;">
+          <input type="checkbox" id="split-gnd" />
+          <label for="split-gnd">分 GND（獨立 GND 層，額外 +1 層）</label>
+        </div>
+        <label style="margin-top:14px;">Power / GND 分佈模式</label>
+        <div class="radio-group">
+          <label><input type="radio" name="pg-mode" value="GPG" checked /> GPG</label>
+          <label><input type="radio" name="pg-mode" value="GPPG" /> GPPG</label>
+          <label><input type="radio" name="pg-mode" value="GPPPG" /> GPPPG</label>
+        </div>
+        <label style="margin-top:14px;">Tolerance（保留層數）</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" id="tol-min" min="0" max="10" value="2" style="width:70px" />
+          <span style="color:var(--muted)">~</span>
+          <input type="number" id="tol-max" min="0" max="10" value="4" style="width:70px" />
+          <span style="font-size:12px;color:var(--muted)">層</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-calc" onclick="calculate()">▶ 計算建議層數</button>
+
+  <!-- ===== Result Panel ===== -->
+  <div id="result-panel">
+    <div class="result-summary">
+      <div class="label">建議 PCB 總層數</div>
+      <div class="value" id="res-total">—</div>
+      <div class="range" id="res-range">—</div>
+    </div>
+
+    <div id="cap-warning" class="warn-banner"></div>
+    <div id="overflow-warning" class="overflow-banner"></div>
+
+    <div class="breakdown-grid" id="breakdown-grid"></div>
+
+    <!-- Fanout Detail -->
+    <div id="fanout-section">
+      <h3>BGA Fanout 逐圈分配明細（每層 = 一圈）</h3>
+      <div class="fanout-grid">
+        <div>
+          <div style="font-size:12px;color:var(--primary);font-weight:700;margin-bottom:4px;">IO Signal 層分配</div>
+          <table class="fanout-detail-table" id="fanout-io-table">
+            <thead><tr><th>Layer</th><th>Ring</th><th>Ring 容量</th><th>有效容量</th><th>分配訊號數</th></tr></thead>
+            <tbody id="fanout-io-tbody"></tbody>
+          </table>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--success);font-weight:700;margin-bottom:4px;">高速訊號層分配</div>
+          <table class="fanout-detail-table" id="fanout-hs-table">
+            <thead><tr><th>Layer</th><th>Ring</th><th>Ring 容量</th><th>有效容量</th><th>分配訊號數</th></tr></thead>
+            <tbody id="fanout-hs-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="stackup-visual">
+      <h3>建議 Stack-up 示意</h3>
+      <table class="stackup-table" id="stackup-table">
+        <thead><tr><th>#</th><th>層別</th><th>類型</th><th>說明</th></tr></thead>
+        <tbody id="stackup-tbody"></tbody>
+      </table>
+    </div>
+
+    <div id="detail-log"></div>
+  </div>
+
+  <div class="version-tag">PCB Layer Stack-up Estimator &nbsp;|&nbsp; V1.2 &nbsp;|&nbsp; 2026-07-02 &nbsp;|&nbsp; chiucp w/ Manus</div>
+</div>
+
+<script>
+// ============================================================
+//  PCB Layer Stack-up Estimator
+//  Version : V1.2
+//  Date    : 2026-07-02
+//  Author  : chiucp w/ Manus
+//
+//  V1.2 Key Change:
+//    Each PCB layer can only fanout ONE BGA ring (process limit).
+//    Layer assignment is ring-by-ring from outermost inward:
+//      e.g. IO=100, 20x20 BGA:
+//        Layer 1 → Ring1 (80 balls) → takes 80 signals
+//        Layer 2 → Ring2 (72 balls) → takes remaining 20 signals
+//        Total = 2 layers
+//    Each ring capacity is also capped at MAX_LAYER_CHANNEL=250.
+// ============================================================
+
+const MAX_LAYER_CHANNEL = 250; // tester bottleneck
+
+// ── Default Power Domain Data ──────────────────────────────
+const defaultPowerDomains = [
+  { name: 'VDD_CORE', current: 20 },
+  { name: 'VDD_IO',   current: 10 },
+  { name: 'VDD_PLL',  current: 5  },
+  { name: 'VDD_ANA',  current: 1  },
+  { name: 'VDD_REF',  current: 1  },
+  { name: 'VDD_MEM',  current: 60 },
+];
+
+function initPowerTable() {
+  defaultPowerDomains.forEach(d => addPowerRow(d.name, d.current));
+}
+
+function addPowerRow(name = '', current = '') {
+  const tbody = document.getElementById('power-tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" placeholder="Domain 名稱" value="${name}" style="min-width:110px"/></td>
+    <td><input type="number" placeholder="A" min="0" step="0.1" value="${current}" style="width:80px"/></td>
+    <td><button class="btn-del" onclick="this.closest('tr').remove()">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+// ── Ring Capacity List ─────────────────────────────────────
+/**
+ * Returns array of ring objects for BGA N×N up to ringLimit rings.
+ * Ring k: balls = (N - 2*(k-1)) * 4
+ * Effective = min(balls, MAX_LAYER_CHANNEL)
+ */
+function getRingCapacities(bgaSize, ringLimit) {
+  const N = bgaSize;
+  const rings = [];
+  for (let k = 1; k <= ringLimit; k++) {
+    const side = N - 2 * (k - 1);
+    if (side <= 0) break;
+    const balls = side * 4;
+    const effective = Math.min(balls, MAX_LAYER_CHANNEL);
+    rings.push({ ring: k, side, balls, effective, capped: balls > MAX_LAYER_CHANNEL });
+  }
+  return rings;
+}
+
+// ── V1.2 Layer Assignment: Ring-by-Ring ───────────────────
+/**
+ * Assign signals to layers, one ring per layer.
+ * Fill from outermost ring inward.
+ * If signals exceed all available rings, continue using the
+ * last ring's capacity (overflow layers, marked separately).
+ *
+ * Returns: array of layer assignment objects.
+ */
+function assignLayersByRing(totalSignals, bgaSize, ringLimit) {
+  if (totalSignals <= 0) return [];
+  const rings = getRingCapacities(bgaSize, ringLimit);
+  let remaining = totalSignals;
+  const layers = [];
+
+  for (const r of rings) {
+    if (remaining <= 0) break;
+    const assigned = Math.min(remaining, r.effective);
+    layers.push({
+      ring: r.ring, side: r.side, balls: r.balls,
+      effective: r.effective, assigned, capped: r.capped, overflow: false
+    });
+    remaining -= assigned;
+  }
+
+  // Overflow: signals exceed all designated rings
+  if (remaining > 0) {
+    const lastEff = rings.length > 0 ? rings[rings.length - 1].effective : 1;
+    let overflowRing = (rings.length > 0 ? rings[rings.length - 1].ring : 0) + 1;
+    while (remaining > 0) {
+      const assigned = Math.min(remaining, lastEff);
+      layers.push({
+        ring: overflowRing, side: null, balls: null,
+        effective: lastEff, assigned, capped: false, overflow: true
+      });
+      remaining -= assigned;
+      overflowRing++;
+    }
+  }
+
+  return layers;
+}
+
+// ── Power Layer Grouping ───────────────────────────────────
+function calcPowerLayers(domains) {
+  const MAX_CURRENT = 40;
+  const MAX_DOMAINS = 3;
+  let layers = 0;
+  const groups = [];
+  const light = [];
+
+  domains.forEach(d => {
+    if (d.current > MAX_CURRENT) {
+      const n = Math.ceil(d.current / MAX_CURRENT);
+      layers += n;
+      for (let i = 0; i < n; i++) {
+        const cur = Math.min(d.current - i * MAX_CURRENT, MAX_CURRENT);
+        groups.push({ domains: [n > 1 ? `${d.name}(${i+1}/${n})` : d.name], current: cur });
+      }
+    } else {
+      light.push({ ...d });
+    }
+  });
+
+  light.sort((a, b) => b.current - a.current);
+  const bins = [];
+  light.forEach(d => {
+    let placed = false;
+    for (const bin of bins) {
+      if (bin.domains.length < MAX_DOMAINS && bin.current + d.current <= MAX_CURRENT) {
+        bin.domains.push(d.name);
+        bin.current += d.current;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) bins.push({ domains: [d.name], current: d.current });
+  });
+
+  layers += bins.length;
+  bins.forEach(b => groups.push(b));
+  return { layers, groups: [...groups] };
+}
+
+// ── GND Layer Calculation ──────────────────────────────────
+function calcGndLayers(sigLayers, hsLayers, powerLayers, pgMode, splitGnd) {
+  const sigHsGnd = sigLayers + hsLayers + 1;
+  let powerGnd = 0;
+  if (pgMode === 'GPG')        powerGnd = powerLayers + 1;
+  else if (pgMode === 'GPPG')  powerGnd = Math.ceil(powerLayers / 2) + 1;
+  else if (pgMode === 'GPPPG') powerGnd = Math.ceil(powerLayers / 3) + 1;
+  const splitExtra = splitGnd ? 1 : 0;
+  return { totalGnd: sigHsGnd + powerGnd + splitExtra, sigHsGnd, powerGnd, splitExtra };
+}
+
+// ── Main Calculate ─────────────────────────────────────────
+function calculate() {
+  let log = '';
+  const L = (s, cls='') => { log += (cls ? `<span class="${cls}">${s}</span>` : s) + '\n'; };
+
+  const bgaRow    = parseInt(document.getElementById('bga-row').value)    || 20;
+  const bgaCol    = parseInt(document.getElementById('bga-col').value)    || 20;
+  const bgaSize   = Math.min(bgaRow, bgaCol);
+  const sigCount  = parseInt(document.getElementById('sig-count').value)  || 0;
+  const hsCount   = parseInt(document.getElementById('hs-count').value)   || 0;
+  const siteCount = parseInt(document.getElementById('site-count').value) || 1;
+  const ioRings   = parseInt(document.getElementById('io-rows').value)    || 4;
+  const hsRings   = parseInt(document.getElementById('hs-rows').value)    || 2;
+  const splitGnd  = document.getElementById('split-gnd').checked;
+  const pgMode    = document.querySelector('input[name="pg-mode"]:checked').value;
+  const tolMin    = parseInt(document.getElementById('tol-min').value)    || 2;
+  const tolMax    = parseInt(document.getElementById('tol-max').value)    || 4;
+
+  const rows = document.querySelectorAll('#power-tbody tr');
+  const domains = [];
+  rows.forEach(tr => {
+    const inputs = tr.querySelectorAll('input');
+    const name = inputs[0].value.trim() || 'Unknown';
+    const cur  = parseFloat(inputs[1].value) || 0;
+    if (cur > 0) domains.push({ name, current: cur });
+  });
+
+  L('═══════════════════════════════════════════════════════', 'log-section');
+  L('  PCB 走線層數估算  |  V1.2  |  2026-07-02  |  chiucp w/ Manus', 'log-section');
+  L('═══════════════════════════════════════════════════════', 'log-section');
+  L('');
+  L('【輸入參數】', 'log-section');
+  L(`  BGA Array       : ${bgaRow} × ${bgaCol}  (計算用尺寸: ${bgaSize})`);
+  L(`  Signal 數量     : ${sigCount}  (不含高速，單 site)`);
+  L(`  高速訊號數量    : ${hsCount}  (單 site)`);
+  L(`  SITE 數量       : ${siteCount}  ★ 僅影響 IO/HS 層；Power 以單 site 計算`);
+  L(`  IO @BGA 排數    : ${ioRings}`);
+  L(`  高速 @BGA 排數  : ${hsRings}`);
+  L(`  分 GND          : ${splitGnd ? '是' : '否'}`);
+  L(`  Power/GND 模式  : ${pgMode}`);
+  L(`  Tolerance       : ${tolMin} ~ ${tolMax} 層`);
+  L(`  單層 Channel 上限: ${MAX_LAYER_CHANNEL} (Tester 瓶頸)`);
+  L('');
+  L('【Power Domain（單 site）】', 'log-section');
+  domains.forEach(d => L(`  ${d.name.padEnd(15)} : ${d.current} A`));
+  L('');
+
+  // ── 1. BGA Ring Capacities ───────────────────────────────
+  L('【1. BGA Ring 容量（V1.2：每層 = 一圈，Ring k = (N-2*(k-1))×4）】', 'log-section');
+  const ioRingList = getRingCapacities(bgaSize, ioRings);
+  L(`  IO 可用排數 ${ioRings} 排：`);
+  ioRingList.forEach(r => {
+    const capNote = r.capped ? ` ⚠ 超過 ${MAX_LAYER_CHANNEL} 上限，有效=${r.effective}` : '';
+    L(`    Ring ${r.ring}: (${bgaSize}-${2*(r.ring-1)})×4 = ${r.side}×4 = ${r.balls} 球${capNote}`);
+  });
+
+  const hsRingList = getRingCapacities(bgaSize, hsRings);
+  L(`  高速可用排數 ${hsRings} 排：`);
+  hsRingList.forEach(r => {
+    const capNote = r.capped ? ` ⚠ 超過 ${MAX_LAYER_CHANNEL} 上限，有效=${r.effective}` : '';
+    L(`    Ring ${r.ring}: (${bgaSize}-${2*(r.ring-1)})×4 = ${r.side}×4 = ${r.balls} 球${capNote}`);
+  });
+  L('');
+
+  // ── 2. Signal Layer Assignment ───────────────────────────
+  L('【2. Signal 層數計算（逐圈分配，每層一圈）】', 'log-section');
+  const totalSig = sigCount * siteCount;
+  L(`  Signal 總數 = ${sigCount} × ${siteCount} SITE = ${totalSig}`);
+  const sigAssign = assignLayersByRing(totalSig, bgaSize, ioRings);
+  sigAssign.forEach((la, i) => {
+    const ovNote  = la.overflow ? ' [★ 超過指定排數，延用最後一圈容量]' : '';
+    const capNote = la.capped   ? ` [⚠ Ring 容量 ${la.balls} 超過 ${MAX_LAYER_CHANNEL} 上限]` : '';
+    L(`  Layer SIG-${i+1}: Ring ${la.ring} (容量 ${la.effective}) → 分配 ${la.assigned} 條${capNote}${ovNote}`);
+  });
+  const sigLayers = Math.max(sigAssign.length, 2);
+  const sigOverflow = sigAssign.some(l => l.overflow);
+  if (sigAssign.length < 2) {
+    L(`  → 實際需 ${sigAssign.length} 層，套用最少 2 層下限 → Signal 層數 = ${sigLayers}`, 'log-ok');
+  } else {
+    L(`  → Signal 層數 = ${sigLayers}`, 'log-ok');
+  }
+  if (sigOverflow) L(`  ⚠ 訊號數超過 IO 排數可提供的 Ring 數，已自動延伸層數`, 'log-warn');
+  L('');
+
+  // ── 3. High-Speed Layer Assignment ──────────────────────
+  L('【3. 高速訊號層數計算（逐圈分配，GSG 規則）】', 'log-section');
+  const totalHs = hsCount * siteCount;
+  L(`  高速訊號總數 = ${hsCount} × ${siteCount} SITE = ${totalHs}`);
+  const hsAssign = assignLayersByRing(totalHs, bgaSize, hsRings);
+  hsAssign.forEach((la, i) => {
+    const ovNote  = la.overflow ? ' [★ 超過指定排數，延用最後一圈容量]' : '';
+    const capNote = la.capped   ? ` [⚠ Ring 容量 ${la.balls} 超過 ${MAX_LAYER_CHANNEL} 上限]` : '';
+    L(`  Layer HS-${i+1}: Ring ${la.ring} (容量 ${la.effective}) → 分配 ${la.assigned} 條${capNote}${ovNote}`);
+  });
+  const hsLayers = Math.max(hsAssign.length, totalHs > 0 ? 1 : 0);
+  const hsOverflow = hsAssign.some(l => l.overflow);
+  L(`  → 高速層數 = ${hsLayers}  (GSG：上下各需 GND)`, 'log-ok');
+  if (hsOverflow) L(`  ⚠ 高速訊號數超過 HS 排數可提供的 Ring 數，已自動延伸層數`, 'log-warn');
+  L('');
+
+  // ── 4. Power Layers ──────────────────────────────────────
+  L('【4. Power 層數計算（單 site，單層上限 40A，最多 3 組）】', 'log-section');
+  const { layers: powerLayers, groups: powerGroups } = calcPowerLayers(domains);
+  powerGroups.forEach((g, i) => {
+    L(`  Layer P${i+1}: [${g.domains.join(', ')}]  合計 ${g.current.toFixed(1)} A`);
+  });
+  L(`  → Power 層數 = ${powerLayers}`, 'log-ok');
+  L('');
+
+  // ── 5. GND Layers ────────────────────────────────────────
+  L('【5. GND 層數計算】', 'log-section');
+  const { totalGnd, sigHsGnd, powerGnd, splitExtra } = calcGndLayers(sigLayers, hsLayers, powerLayers, pgMode, splitGnd);
+  L(`  Signal+高速 GND = ${sigLayers}(sig) + ${hsLayers}(hs) + 1(共用邊界) = ${sigHsGnd} 層`);
+  L(`  Power GND (${pgMode} 模式) = ${powerGnd} 層`);
+  if (splitExtra) L(`  分 GND 額外 = +${splitExtra} 層`, 'log-warn');
+  L(`  → GND 總層數 = ${sigHsGnd} + ${powerGnd} + ${splitExtra} = ${totalGnd}`, 'log-ok');
+  L('');
+
+  // ── 6. Fixed Layers ──────────────────────────────────────
+  L('【6. 固定層數】', 'log-section');
+  const topBottom  = 2;
+  const userPower  = 1;
+  const powerSense = Math.ceil(domains.length / 20) || 1;
+  L(`  Top & Bottom  = ${topBottom} 層（固定）`);
+  L(`  User Power    = ${userPower} 層（預設）`);
+  L(`  Power Sense   = ceil(${domains.length} / 20) = ${powerSense} 層`);
+  L('');
+
+  // ── 7. Total ─────────────────────────────────────────────
+  L('【7. 總層數計算】', 'log-section');
+  const baseTotal = sigLayers + hsLayers + totalGnd + powerLayers + topBottom + userPower + powerSense;
+  const totalMin  = baseTotal + tolMin;
+  const totalMax  = baseTotal + tolMax;
+
+  L(`  Signal       : ${sigLayers}`);
+  L(`  高速          : ${hsLayers}`);
+  L(`  GND          : ${totalGnd}`);
+  L(`  Power        : ${powerLayers}`);
+  L(`  Top/Bottom   : ${topBottom}`);
+  L(`  User Power   : ${userPower}`);
+  L(`  Power Sense  : ${powerSense}`);
+  L(`  ─────────────────────────────`);
+  L(`  小計          : ${baseTotal}`);
+  L(`  Tolerance    : +${tolMin} ~ +${tolMax}`);
+  L('');
+  L(`  ★ 建議總層數 : ${totalMin} ~ ${totalMax} 層`, 'log-total');
+  L('');
+  L('═══════════════════════════════════════════════════════', 'log-section');
+
+  // ── Warnings ─────────────────────────────────────────────
+  const capWarn = document.getElementById('cap-warning');
+  const ovWarn  = document.getElementById('overflow-warning');
+  const capMsgs = [];
+  const ovMsgs  = [];
+
+  [...sigAssign, ...hsAssign].forEach(la => {
+    if (la.capped) capMsgs.push(`Ring ${la.ring} 容量 ${la.balls} 超過 Tester 上限 ${MAX_LAYER_CHANNEL}，有效值已截斷`);
+  });
+  if (sigOverflow)  ovMsgs.push(`IO 訊號 ${totalSig} 條超過 ${ioRings} 排 Ring 可容納量，已自動新增延伸層`);
+  if (hsOverflow)   ovMsgs.push(`高速訊號 ${totalHs} 條超過 ${hsRings} 排 Ring 可容納量，已自動新增延伸層`);
+
+  if (capMsgs.length > 0) {
+    capWarn.innerHTML = '⚠ <strong>Tester Channel 上限警告（250 ch/layer）：</strong><br>' + [...new Set(capMsgs)].join('<br>');
+    capWarn.classList.add('show');
+  } else { capWarn.classList.remove('show'); }
+
+  if (ovMsgs.length > 0) {
+    ovWarn.innerHTML = '⚠ <strong>Ring 容量溢出警告：</strong><br>' + ovMsgs.join('<br>') + '<br><small>建議增加 IO/HS @BGA 排數或減少 site 數量。</small>';
+    ovWarn.classList.add('show');
+  } else { ovWarn.classList.remove('show'); }
+
+  // ── Display Results ──────────────────────────────────────
+  document.getElementById('res-total').textContent = `${totalMin} ~ ${totalMax}`;
+  document.getElementById('res-range').textContent = `建議範圍：${totalMin} 層（保守）~ ${totalMax} 層（充裕）`;
+
+  const bd = document.getElementById('breakdown-grid');
+  bd.innerHTML = '';
+  const items = [
+    { label: `Signal 層 (×${siteCount} site)`, value: sigLayers },
+    { label: `高速訊號層 (×${siteCount} site)`, value: hsLayers },
+    { label: 'GND 層', value: totalGnd },
+    { label: 'Power 層 (單 site)', value: powerLayers },
+    { label: 'Top / Bottom', value: topBottom },
+    { label: 'User Power', value: userPower },
+    { label: 'Power Sense', value: powerSense },
+    { label: 'Tolerance', value: `+${tolMin}~+${tolMax}`, highlight: true },
+    { label: '總計（含 Tolerance）', value: `${totalMin}~${totalMax}`, highlight: true },
+  ];
+  if (capMsgs.length > 0) items.unshift({ label: `⚠ Channel Cap (${MAX_LAYER_CHANNEL})`, value: '已觸發', warnCap: true });
+  if (ovMsgs.length > 0)  items.unshift({ label: '⚠ Ring 溢出', value: '已延伸', warnCap: true });
+
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'breakdown-item' + (item.highlight ? ' highlight' : '') + (item.warnCap ? ' warn-cap' : '');
+    div.innerHTML = `<div class="bi-label">${item.label}</div><div class="bi-value">${item.value}</div>`;
+    bd.appendChild(div);
+  });
+
+  // ── Fanout Detail Tables ──────────────────────────────────
+  function fillFanoutTable(tbodyId, assignments) {
+    const tbody = document.getElementById(tbodyId);
+    tbody.innerHTML = '';
+    assignments.forEach((la, i) => {
+      const tr = document.createElement('tr');
+      if (la.overflow) tr.className = 'overflow-row';
+      else if (la.capped) tr.className = 'capped';
+      const ringLabel = la.overflow ? `Ring ${la.ring} ★` : `Ring ${la.ring}`;
+      const ballsLabel = la.balls !== null ? la.balls : `(延伸)`;
+      tr.innerHTML = `<td>Layer ${i+1}</td><td>${ringLabel}</td><td>${ballsLabel}</td><td>${la.effective}</td><td>${la.assigned}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  fillFanoutTable('fanout-io-tbody', sigAssign);
+  fillFanoutTable('fanout-hs-tbody', hsAssign);
+  document.getElementById('fanout-section').style.display = 'block';
+
+  // ── Stack-up Visual ──────────────────────────────────────
+  buildStackup(sigLayers, hsLayers, totalGnd, powerLayers, powerGroups, pgMode, topBottom, userPower, powerSense, totalMin, sigAssign, hsAssign);
+
+  document.getElementById('detail-log').innerHTML = log;
+  const panel = document.getElementById('result-panel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Build Stack-up Table ───────────────────────────────────
+function buildStackup(sigLayers, hsLayers, totalGnd, powerLayers, powerGroups, pgMode, topBottom, userPower, powerSense, totalMin, sigAssign, hsAssign) {
+  const tbody = document.getElementById('stackup-tbody');
+  tbody.innerHTML = '';
+  const stack = [];
+
+  stack.push({ type: 'top', label: 'TOP', desc: 'Component / Routing Layer' });
+
+  for (let i = 0; i < sigLayers; i++) {
+    stack.push({ type: 'gnd', label: 'GND', desc: 'Signal Reference GND' });
+    const la = sigAssign[i];
+    const ringNote = la ? ` (Ring ${la.ring}, ${la.assigned} 條)` : '';
+    stack.push({ type: 'sig', label: `SIG-${i+1}`, desc: `Signal Routing Layer ${i+1}${ringNote}` });
+  }
+  stack.push({ type: 'gnd', label: 'GND', desc: 'Signal Reference GND' });
+
+  for (let i = 0; i < hsLayers; i++) {
+    stack.push({ type: 'gnd', label: 'GND', desc: 'HS Reference GND (G of GSG)' });
+    const la = hsAssign[i];
+    const ringNote = la ? ` (Ring ${la.ring}, ${la.assigned} 條)` : '';
+    stack.push({ type: 'hs', label: `HS-${i+1}`, desc: `High-Speed Routing Layer ${i+1} (S of GSG)${ringNote}` });
+  }
+  if (hsLayers > 0) stack.push({ type: 'gnd', label: 'GND', desc: 'HS Reference GND (G of GSG)' });
+
+  const gndPerPower = pgMode === 'GPG' ? 1 : pgMode === 'GPPG' ? 2 : 3;
+  stack.push({ type: 'gnd', label: 'GND', desc: 'Power Reference GND' });
+  for (let i = 0; i < powerGroups.length; i++) {
+    const g = powerGroups[i];
+    stack.push({ type: 'pwr', label: `PWR-${i+1}`, desc: `Power: ${g.domains.join(', ')} (${g.current.toFixed(1)}A)` });
+    if ((i + 1) % gndPerPower === 0 && i < powerGroups.length - 1) {
+      stack.push({ type: 'gnd', label: 'GND', desc: 'Power Reference GND' });
+    }
+  }
+  stack.push({ type: 'gnd', label: 'GND', desc: 'Power Reference GND' });
+
+  stack.push({ type: 'upwr', label: 'USER-PWR', desc: 'User Power Layer' });
+  for (let i = 0; i < powerSense; i++) {
+    stack.push({ type: 'psns', label: 'PWR-SENSE', desc: `Power Sense Layer ${i+1}` });
+  }
+  stack.push({ type: 'top', label: 'BOTTOM', desc: 'Component / Routing Layer' });
+
+  stack.forEach((s, i) => {
+    const tr = document.createElement('tr');
+    const typeClass = { top:'layer-type-top', sig:'layer-type-sig', hs:'layer-type-hs', gnd:'layer-type-gnd', pwr:'layer-type-pwr', upwr:'layer-type-upwr', psns:'layer-type-psns' }[s.type] || '';
+    const typeLabel = { top:'TOP/BOT', sig:'Signal', hs:'High-Speed', gnd:'GND', pwr:'Power', upwr:'User Power', psns:'Power Sense' }[s.type] || s.type;
+    tr.innerHTML = `<td>${i+1}</td><td class="${typeClass}">${s.label}</td><td>${typeLabel}</td><td style="color:var(--muted);font-size:11px">${s.desc}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const trNote = document.createElement('tr');
+  trNote.innerHTML = `<td colspan="4" style="background:#fff8e0;color:#7a5000;font-size:11px;padding:8px 10px;text-align:center;">★ 以上為邏輯示意，實際層數含 Tolerance 建議為 <strong>${totalMin}</strong> 層以上，請依 SI/PI 分析結果調整。</td>`;
+  tbody.appendChild(trNote);
+}
+
+window.onload = () => { initPowerTable(); };
+</script>
+</body>
+</html>
