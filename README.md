@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8" />
@@ -230,28 +230,28 @@
     </div>
     <ul class="tool-list">
       <li>
-        <a class="tool-link" href="#" target="_blank">
+        <a class="tool-link" href="netlist_viewer.html" target="_blank">
           <span class="tool-name">Allegro Netlist Analyze</span>
           <span class="tool-desc">網表分析工具</span>
           <span class="arrow">›</span>
         </a>
       </li>
       <li>
-        <a class="tool-link" href="#" target="_blank">
+        <a class="tool-link" href="pcb_calculator_manus.html" target="_blank">
           <span class="tool-name">PCB 電流計算</span>
           <span class="tool-desc">走線電流承載計算</span>
           <span class="arrow">›</span>
         </a>
       </li>
       <li>
-        <a class="tool-link" href="#" target="_blank">
+        <a class="tool-link" href="pcb_ipc2221_calculator.html" target="_blank">
           <span class="tool-name">PCB 電流計算 Pro</span>
           <span class="tool-desc">進階版電流計算</span>
           <span class="arrow">›</span>
         </a>
       </li>
       <li>
-        <a class="tool-link" href="#" target="_blank">
+        <a class="tool-link" href="PCB_Layer_Estimator.html" target="_blank">
           <span class="tool-name">PCB 層數預估</span>
           <span class="tool-desc">板層數量評估工具</span>
           <span class="arrow">›</span>
@@ -269,7 +269,7 @@
     </div>
     <ul class="tool-list">
       <li>
-        <a class="tool-link" href="#" target="_blank">
+        <a class="tool-link" href="GCTool.html" target="_blank">
           <span class="tool-name">Gantt Chart 甘特圖工具</span>
           <span class="tool-desc">專案時程視覺化</span>
           <span class="arrow">›</span>
@@ -287,7 +287,7 @@
     </div>
     <ul class="tool-list">
       <li>
-        <a class="tool-link" href="#" target="_blank">
+        <a class="tool-link" href="pin_scatter_plot.html" target="_blank">
           <span class="tool-name">Coordinate to Pattern</span>
           <span class="tool-desc">座標轉圖形工具</span>
           <span class="arrow">›</span>
@@ -305,7 +305,7 @@
     </div>
     <ul class="tool-list">
       <li>
-        <a class="tool-link" href="#" target="_blank">
+        <a class="tool-link" href="KingShot_Giftcode.html" target="_blank">
           <span class="tool-name">Kingshot Gift Code</span>
           <span class="tool-desc">禮包碼查詢 / 兌換</span>
           <span class="arrow">›</span>
@@ -326,21 +326,21 @@
     <div class="hidden-content" id="hidden-tools">
       <ul class="tool-list">
         <li>
-          <a class="tool-link" href="#" target="_blank">
+          <a class="tool-link" href="YTGOGO.html" target="_blank">
             <span class="tool-name">YT 播放器 for CHPT</span>
             <span class="tool-desc">YouTube 內嵌播放器</span>
             <span class="arrow">›</span>
           </a>
         </li>
         <li>
-          <a class="tool-link" href="#" target="_blank">
+          <a class="tool-link" href="CP_LINK_v10.html" target="_blank">
             <span class="tool-name">CP 超連結 for CHPT</span>
             <span class="tool-desc">快速連結管理</span>
             <span class="arrow">›</span>
           </a>
         </li>
         <li>
-          <a class="tool-link" href="#" target="_blank">
+          <a class="tool-link" href="z-chun_reflash.html" target="_blank">
             <span class="tool-name">自動刷新網頁 for 立群看診號</span>
             <span class="tool-desc">定時自動重新整理</span>
             <span class="arrow">›</span>
@@ -371,4 +371,4 @@
 </script>
 
 </body>
-</html>
+
