@@ -1,6 +1,6 @@
 <html lang="zh-TW"><head>
     <meta charset="UTF-8">
-    <title>KS 批次兌換工具 v2.7.0</title>
+    <title>KS 批次兌換工具 v2.7.1</title>
 	<link rel="icon" href="https://kingshotdata.com/icons/chests-of-gold.webp">
     <style>
 		.version-box {
@@ -83,7 +83,7 @@
 <body>
 <div class="version-box">
     KS Redeemer Tool<br>
-    Version: v2.7.0 (Final Stable)<br>
+    Version: v2.7.1 (Fast Code Fetch)<br>
     Build: 2026-08-13<br>
     Mode: Github HTML
 </div>
@@ -147,8 +147,10 @@ VIP666"></textarea><br>
 
     function log(msg, type = "info") {
         const time = new Date().toLocaleTimeString();
-        let className = "log-" + type;
-        logBox.innerHTML += `<div class="${className}">[${time}] ${msg}</div>`;
+        const line = document.createElement("div");
+        line.className = "log-" + type;
+        line.textContent = `[${time}] ${msg}`;
+        logBox.appendChild(line);
         logBox.scrollTop = logBox.scrollHeight;
     }
 
@@ -178,56 +180,110 @@ VIP666"></textarea><br>
 
     // ====== 抓取 Active 禮包碼 ======
     const KINGSHOT_API = "https://kingshot.net/api/gift-codes";
-    
-    async function fetchCodesFromKingshot() {
-        log("嘗試從 kingshot.net 抓取最新禮包碼...", "info");
-        
-        // 策略 1: 使用 allorigins raw (通常最穩定)
-        try {
-            const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(KINGSHOT_API)}`;
-            const res = await fetch(url);
-            if (res.ok) {
-                const data = await res.json();
-                return parseKingshotCodes(data, "AllOrigins");
-            }
-        } catch (e) {}
+    const CODE_FETCH_TIMEOUT = 7000; // 每個來源最多等待 7 秒
 
-        // 策略 2: 使用 corsproxy.io (兌換用的 Proxy)
-        try {
-            const url = REDEEM_PROXY + encodeURIComponent(KINGSHOT_API);
-            const res = await fetch(url);
-            if (res.ok) {
-                const data = await res.json();
-                return parseKingshotCodes(data, "CorsProxy");
-            }
-        } catch (e) {}
+    // 兩個來源同時請求，先成功者立即使用；避免先等待慢來源逾時才改用下一個。
+    const CODE_PROXIES = [
+        {
+            name: "CorsProxy",
+            buildUrl: () => `https://corsproxy.io/?${encodeURIComponent(KINGSHOT_API)}`
+        },
+        {
+            name: "AllOrigins",
+            buildUrl: () => `https://api.allorigins.win/raw?url=${encodeURIComponent(KINGSHOT_API)}`
+        }
+    ];
 
-        log("抓取失敗：所有 Proxy 均被攔截或 kingshot.net 暫時無法連線。", "error");
-        return [];
+    async function fetchJsonWithTimeout(url, source, controller) {
+        const timeoutId = setTimeout(() => controller.abort(), CODE_FETCH_TIMEOUT);
+        try {
+            const res = await fetch(url, {
+                signal: controller.signal,
+                headers: { "Accept": "application/json" },
+                cache: "no-store"
+            });
+            if (!res.ok) throw new Error(`${source} HTTP ${res.status}`);
+
+            const data = await res.json();
+            if (!data || data.status !== "success" || !data.data || !Array.isArray(data.data.giftCodes)) {
+                throw new Error(`${source} 回傳格式異常`);
+            }
+            return { data, source };
+        } finally {
+            clearTimeout(timeoutId);
+        }
     }
 
-    function parseKingshotCodes(data, source) {
-        if (!data || data.status !== "success" || !data.data || !data.data.giftCodes) {
+    async function fetchCodesFromKingshot() {
+        const startedAt = performance.now();
+        log("正在從 kingshot.net 抓取 Active 禮包碼（多來源並行）...", "info");
+
+        const controllers = CODE_PROXIES.map(() => new AbortController());
+        const requests = CODE_PROXIES.map((proxy, index) =>
+            fetchJsonWithTimeout(proxy.buildUrl(), proxy.name, controllers[index])
+        );
+
+        try {
+            // Promise.any 會立即採用第一個成功的回應，不會串行等待慢來源。
+            const result = await Promise.any(requests);
+            controllers.forEach(controller => controller.abort());
+
+            const elapsedMs = Math.round(performance.now() - startedAt);
+            return parseKingshotCodes(result.data, result.source, elapsedMs);
+        } catch (e) {
+            controllers.forEach(controller => controller.abort());
+            log("抓取失敗：所有來源均被攔截、逾時或 kingshot.net 暫時無法連線。", "error");
             return [];
         }
-        const now = new Date();
-        const activeCodes = data.data.giftCodes.filter(item => {
-            if (!item.expiresAt) return true;
-            return new Date(item.expiresAt) > now;
-        }).map(item => item.code);
-
-        if (activeCodes.length > 0) {
-            log(`[${source}] 成功取得 ${activeCodes.length} 個有效禮包碼`, "success");
-        } else {
-            log("目前站點上沒有有效的禮包碼", "warning");
-        }
-        return activeCodes;
     }
 
-    document.getElementById("fetchCodes").addEventListener("click", async () => {
-        const codes = await fetchCodesFromKingshot();
-        if (codes.length > 0) {
-            document.getElementById("codes").value = codes.join("\n");
+    function formatExpiry(expiresAt) {
+        if (!expiresAt) return "未提供到期日";
+        const date = new Date(expiresAt);
+        if (Number.isNaN(date.getTime())) return "到期日格式異常";
+        return `到期：${date.toLocaleString("zh-TW", {
+            year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit", hour12: false
+        })}`;
+    }
+
+    function parseKingshotCodes(data, source, elapsedMs) {
+        const now = new Date();
+        const activeItems = data.data.giftCodes.filter(item => {
+            if (!item.code) return false;
+            if (!item.expiresAt) return true;
+            return new Date(item.expiresAt) > now;
+        });
+
+        if (activeItems.length === 0) {
+            log(`[${source}] 目前站點上沒有有效的禮包碼（耗時 ${elapsedMs} ms）`, "warning");
+            return [];
+        }
+
+        log(`[${source}] 成功取得 ${activeItems.length} 個有效禮包碼（耗時 ${elapsedMs} ms）`, "success");
+        log("──────── Active 禮包碼清單 ────────", "info");
+        activeItems.forEach((item, index) => {
+            log(`${String(index + 1).padStart(2, "0")}. ${item.code} ｜ ${formatExpiry(item.expiresAt)}`, "info");
+        });
+        log("────────────────────────────────", "info");
+
+        return activeItems.map(item => item.code);
+    }
+
+    document.getElementById("fetchCodes").addEventListener("click", async event => {
+        const button = event.currentTarget;
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = "正在獲取...";
+
+        try {
+            const codes = await fetchCodesFromKingshot();
+            if (codes.length > 0) {
+                document.getElementById("codes").value = codes.join("\n");
+            }
+        } finally {
+            button.disabled = false;
+            button.textContent = originalText;
         }
     });
 
