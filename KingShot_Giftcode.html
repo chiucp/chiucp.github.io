@@ -1,6 +1,7 @@
 <html lang="zh-TW"><head>
     <meta charset="UTF-8">
-    <title>KS 批次兌換工具 v2.6.0</title>
+    <title>KS 批次兌換工具 v2.7.0</title>
+	<link rel="icon" href="https://kingshotdata.com/icons/chests-of-gold.webp">
     <style>
 		.version-box {
 		    position: fixed;
@@ -16,7 +17,7 @@
         body { font-family: Arial, "Noto Sans TC", sans-serif; padding: 20px; }
         textarea, input { width: 320px; height: 35px; padding: 8px; margin-bottom: 10px; }
         textarea { height: 70px; }
-        button { width: 250px; padding: 10px ; margin-top: 10px;}
+        button { width: 250px; padding: 10px ; margin-top: 10px; cursor: pointer;}
         #log {
             white-space: pre-wrap;
             background: #111;
@@ -63,12 +64,26 @@
 		    margin-top: 0;
 		    color: #7f7f7f;
 		}
+        .links {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px dashed #ccc;
+        }
+        .links a {
+            display: block;
+            color: #ff7a00;
+            text-decoration: none;
+            margin-bottom: 5px;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
 <div class="version-box">
     KS Redeemer Tool<br>
-    Version: v2.6.0 (Stable & Restored)<br>
+    Version: v2.7.0 (Final Stable)<br>
     Build: 2026-08-13<br>
     Mode: Github HTML
 </div>
@@ -89,10 +104,9 @@
 KS2024
 VIP666"></textarea><br>
 		
-		<button id="start">開始批次兌換</button><br>
-		<button id="clear">清除快取</button>
-		<button id="fetchCodes" style="background-color: #ff7a00; color: white; border: none; cursor: pointer;">獲取最新禮包碼 (API)</button>
-		Refer to: <a href="https://kingshot.net/gift-codes" target="_blank">kingshot.net</a><br>
+		<button id="start" style="background-color: #4CAF50; color: white; border: none;">開始批次兌換</button><br>
+		<button id="fetchCodes" style="background-color: #ff7a00; color: white; border: none;">獲取最新禮包碼 (API)</button><br>
+        <button id="clear" style="background-color: #f44336; color: white; border: none;">清除快取</button>
     </div>
 
     <div class="right-panel">
@@ -105,7 +119,15 @@ VIP666"></textarea><br>
                 <li><b>USED</b>　禮包碼達領取上限</li>
                 <li><b>INVALID</b>　禮包碼不存在 / 錯誤</li>
             </ul>
-            <p style="color: #ff4d4d;">提示：官方已關閉登入介面，現改為直接兌換。若遇到 Failed to fetch，請稍後再試或更換網路。</p>
+            <p style="color: #666;">提示：官方已移除登入檢查，現為直接兌換。若獲取禮包碼失敗，請手動複製下方連結中的代碼。</p>
+            
+            <div class="links">
+                <strong>官方連結：</strong>
+                <a href="https://store.centurygames.com/kingshot" target="_blank">🔗 Official Store (官方商店)</a>
+                <a href="https://ks-giftcode.centurygame.com/" target="_blank">🔗 Official Gift Code Center (官方兌換中心)</a>
+				<strong>禮包碼：</strong>
+                <a href="https://kingshot.net/gift-codes" target="_blank">🔗 Kingshot.net (禮包碼資訊站)</a>
+            </div>
         </div>
     </div>
 </div>
@@ -118,7 +140,7 @@ VIP666"></textarea><br>
     const REDEEM_URL = "https://kingshot-giftcode.centurygame.com/api/gift_code";
     const SECRET = "mN4!pQs6JrYwV9";
     const DELAY = 2500;
-    const PROXY_URL = "https://corsproxy.io/?url="; // 修正後的 Proxy URL 格式
+    const REDEEM_PROXY = "https://corsproxy.io/?url=";
 
     const logBox = document.getElementById("log");
     const delay = ms => new Promise(r => setTimeout(r, ms));
@@ -138,7 +160,7 @@ VIP666"></textarea><br>
     }
 
     async function makeRequest(url, payload) {
-        const proxiedUrl = PROXY_URL + encodeURIComponent(url);
+        const proxiedUrl = REDEEM_PROXY + encodeURIComponent(url);
         const formBody = new URLSearchParams();
         for (const key in payload) {
             formBody.append(key, payload[key]);
@@ -146,9 +168,7 @@ VIP666"></textarea><br>
 
         const res = await fetch(proxiedUrl, {
             method: "POST",
-            headers: { 
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: formBody.toString()
         });
 
@@ -156,29 +176,38 @@ VIP666"></textarea><br>
         return res.json();
     }
 
-    // ====== 從 kingshot.net/api/gift-codes 抓取 Active 禮包碼 ======
+    // ====== 抓取 Active 禮包碼 ======
     const KINGSHOT_API = "https://kingshot.net/api/gift-codes";
-    const KINGSHOT_PROXY = "https://api.allorigins.win/get?url=";
-
+    
     async function fetchCodesFromKingshot() {
-        log("從 kingshot.net 抓取最新 Active 禮包碼...", "info");
+        log("嘗試從 kingshot.net 抓取最新禮包碼...", "info");
+        
+        // 策略 1: 使用 allorigins raw (通常最穩定)
         try {
-            const url = KINGSHOT_PROXY + encodeURIComponent(KINGSHOT_API);
+            const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(KINGSHOT_API)}`;
             const res = await fetch(url);
             if (res.ok) {
-                const wrapper = await res.json();
-                const data = JSON.parse(wrapper.contents);
-                return parseKingshotCodes(data);
+                const data = await res.json();
+                return parseKingshotCodes(data, "AllOrigins");
             }
-        } catch (err) {
-            log("抓取禮包碼失敗：" + err.message, "error");
-        }
+        } catch (e) {}
+
+        // 策略 2: 使用 corsproxy.io (兌換用的 Proxy)
+        try {
+            const url = REDEEM_PROXY + encodeURIComponent(KINGSHOT_API);
+            const res = await fetch(url);
+            if (res.ok) {
+                const data = await res.json();
+                return parseKingshotCodes(data, "CorsProxy");
+            }
+        } catch (e) {}
+
+        log("抓取失敗：所有 Proxy 均被攔截或 kingshot.net 暫時無法連線。", "error");
         return [];
     }
 
-    function parseKingshotCodes(data) {
-        if (data.status !== "success" || !data.data || !data.data.giftCodes) {
-            log("API 回傳格式異常", "error");
+    function parseKingshotCodes(data, source) {
+        if (!data || data.status !== "success" || !data.data || !data.data.giftCodes) {
             return [];
         }
         const now = new Date();
@@ -188,14 +217,13 @@ VIP666"></textarea><br>
         }).map(item => item.code);
 
         if (activeCodes.length > 0) {
-            log(`成功取得 ${activeCodes.length} 個 Active 禮包碼：${activeCodes.join(", ")}`, "success");
+            log(`[${source}] 成功取得 ${activeCodes.length} 個有效禮包碼`, "success");
         } else {
-            log("目前沒有 Active 禮包碼", "warning");
+            log("目前站點上沒有有效的禮包碼", "warning");
         }
         return activeCodes;
     }
 
-    // 綁定按鈕事件
     document.getElementById("fetchCodes").addEventListener("click", async () => {
         const codes = await fetchCodesFromKingshot();
         if (codes.length > 0) {
@@ -211,11 +239,13 @@ VIP666"></textarea><br>
     });
 
     document.getElementById("clear").addEventListener("click", () => {
-        localStorage.clear();
-        document.getElementById("ids").value = "";
-        document.getElementById("codes").value = "";
-        document.getElementById("kingdom").value = "";
-        log("已清除儲存的資料", "error");
+        if(confirm("確定要清除所有快取資料嗎？")) {
+            localStorage.clear();
+            document.getElementById("ids").value = "";
+            document.getElementById("codes").value = "";
+            document.getElementById("kingdom").value = "";
+            log("已清除儲存的資料", "error");
+        }
     });
 
     document.getElementById("start").addEventListener("click", async () => {
